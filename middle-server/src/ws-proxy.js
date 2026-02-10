@@ -1,12 +1,19 @@
 import { WebSocket } from 'ws';
 
 export function setupWebSocketProxy(clientWs, runnerWsTarget, sessionId) {
-  console.log(`[${sessionId}] Proxying WebSocket to ${runnerWsTarget}`);
+  console.log(`[${sessionId}] Setting up WebSocket proxy to ${runnerWsTarget}`);
   
-  const runnerWs = new WebSocket(runnerWsTarget);
+  let runnerWs;
+  try {
+    runnerWs = new WebSocket(runnerWsTarget);
+  } catch (err) {
+    console.error(`[${sessionId}] Failed to create WebSocket:`, err);
+    clientWs.close(1011, 'Failed to connect to runner');
+    return;
+  }
 
   runnerWs.on('open', () => {
-    console.log(`[${sessionId}] Connected to runner`);
+    console.log(`[${sessionId}] Connected to runner VNC`);
   });
 
   runnerWs.on('message', (data, isBinary) => {
@@ -17,11 +24,12 @@ export function setupWebSocketProxy(clientWs, runnerWsTarget, sessionId) {
 
   runnerWs.on('error', (err) => {
     console.error(`[${sessionId}] Runner WS error:`, err.message);
-    clientWs.close();
+    if (err.code) console.error(`[${sessionId}] Error code:`, err.code);
+    clientWs.close(1011, err.message);
   });
 
-  runnerWs.on('close', () => {
-    console.log(`[${sessionId}] Runner connection closed`);
+  runnerWs.on('close', (code, reason) => {
+    console.log(`[${sessionId}] Runner connection closed: code=${code}, reason=${reason}`);
     clientWs.close();
   });
 

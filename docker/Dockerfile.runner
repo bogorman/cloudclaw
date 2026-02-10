@@ -46,9 +46,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 # Install OpenClaw
 RUN npm install -g openclaw
 
-# Install Playwright and browsers
-RUN npx playwright install chromium \
-    && npx playwright install-deps chromium
+# Install Playwright browser deps (as root)
+RUN npx playwright install-deps chromium
+
+# Create non-root user first
+RUN useradd -m -s /bin/bash cloudclaw
 
 # Create app directory
 WORKDIR /app
@@ -59,16 +61,16 @@ RUN npm install --production
 
 COPY runner-agent/src ./src
 
-# Create non-root user
-RUN useradd -m -s /bin/bash cloudclaw
 RUN chown -R cloudclaw:cloudclaw /app
+
+# Switch to cloudclaw user and install Playwright browsers
+USER cloudclaw
+RUN npx playwright install chromium
 
 # Environment
 ENV BIND_IP=0.0.0.0
 ENV AGENT_PORT=8080
 ENV DISPLAY=:20
-
-USER cloudclaw
 
 EXPOSE 8080
 EXPOSE 7900-7979

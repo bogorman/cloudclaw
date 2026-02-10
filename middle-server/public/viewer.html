@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CloudClaw Viewer</title>
-  <script src="https://cdn.jsdelivr.net/npm/@nicotine/novnc@1.4.0/lib/rfb.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -81,7 +80,10 @@
     <div id="vnc-screen"></div>
   </div>
 
-  <script>
+  <script type="module">
+    // noVNC RFB import from jsDelivr (ES module)
+    import RFB from 'https://cdn.jsdelivr.net/npm/@novnc/novnc@1.4.0/core/rfb.js';
+
     // Extract session ID from URL
     const pathParts = window.location.pathname.split('/');
     const sessionId = pathParts[2];
@@ -99,7 +101,7 @@
       el.textContent = state.charAt(0).toUpperCase() + state.slice(1);
     }
 
-    function connect() {
+    window.connect = function connect() {
       updateStatus('connecting');
       
       try {
@@ -141,13 +143,13 @@
       }
     }
 
-    function sendCtrlAltDel() {
+    window.sendCtrlAltDel = function() {
       if (rfb) {
         rfb.sendCtrlAltDel();
       }
     }
 
-    function toggleFullscreen() {
+    window.toggleFullscreen = function() {
       if (document.fullscreenElement) {
         document.exitFullscreen();
       } else {
@@ -155,7 +157,7 @@
       }
     }
 
-    async function endSession() {
+    window.endSession = async function() {
       if (!confirm('End this session? The browser will be terminated.')) return;
       
       try {
@@ -169,7 +171,7 @@
     }
 
     // Connect on load
-    connect();
+    window.connect();
   </script>
 </body>
 </html>

@@ -33,12 +33,21 @@ export class RunnerClient {
   }
 
   async createSession({ session_id, width, height, ttl_seconds }) {
-    return this.request('POST', '/v1/sessions', {
+    const result = await this.request('POST', '/v1/sessions', {
       session_id,
       width,
       height,
       ttl_seconds
     });
+    
+    // Rewrite ws_target from 0.0.0.0 to the runner hostname
+    // Inside Docker, we connect to 'runner' container
+    if (result.ws_target) {
+      const runnerHost = new URL(this.baseUrl).hostname;
+      result.ws_target = result.ws_target.replace('0.0.0.0', runnerHost);
+    }
+    
+    return result;
   }
 
   async getSession(sessionId) {

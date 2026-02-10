@@ -29,3 +29,4 @@ services:
       - runner
     volumes:
       - ./data:/app/data
+      - ./middle-server/public:/app/public:ro
