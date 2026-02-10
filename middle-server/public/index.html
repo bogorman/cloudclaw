@@ -40,7 +40,25 @@
     button.secondary:hover { background: #30363d; }
     button.danger { background: #da3633; }
     button.danger:hover { background: #f85149; }
-    .instance-list, .sessions-list { margin-top: 1rem; }
+    
+    /* Machine styles */
+    .machine-list { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+    .machine-item {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+    }
+    .machine-item.selected { border-color: #238636; background: #0d1117; }
+    .machine-name { font-weight: 500; }
+    .machine-host { color: #8b949e; font-family: monospace; font-size: 0.75rem; }
+    
+    /* Instance styles */
+    .instance-list { margin-top: 1rem; }
     .instance-item {
       background: #0d1117;
       border: 1px solid #30363d;
@@ -75,6 +93,8 @@
       display: none;
     }
     .instance-sessions.expanded { display: block; }
+    
+    /* Session styles */
     .session-item {
       display: flex;
       justify-content: space-between;
@@ -90,6 +110,7 @@
     .session-expires { color: #8b949e; font-size: 0.75rem; }
     .session-actions { display: flex; gap: 0.5rem; }
     .session-actions button { padding: 0.4rem 0.75rem; font-size: 0.75rem; }
+    
     .status {
       display: inline-block;
       padding: 0.2rem 0.5rem;
@@ -97,11 +118,12 @@
       font-size: 0.75rem;
       font-weight: 500;
     }
-    .status.running { background: #238636; }
-    .status.pending { background: #9e6a03; }
-    .status.stopped { background: #6e7681; }
-    .status.error { background: #da3633; }
+    .status.running, .status.connected { background: #238636; }
+    .status.pending, .status.unknown { background: #9e6a03; }
+    .status.stopped, .status.error { background: #da3633; }
     .empty { color: #8b949e; font-style: italic; padding: 1rem; text-align: center; }
+    
+    /* Tunnel styles */
     .session-tunnels { margin-top: 0.5rem; }
     .tunnel-item {
       display: flex;
@@ -133,19 +155,44 @@
       font-size: 0.75rem;
     }
     .tunnel-close:hover { color: #da3633; background: transparent; }
-    .new-instance-form {
-      display: flex;
-      gap: 0.5rem;
+    
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
       align-items: center;
-      flex-wrap: wrap;
+      justify-content: center;
     }
-    .new-instance-form select {
+    .modal.active { display: flex; }
+    .modal-content {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 2rem;
+      width: 500px;
+      max-width: 90%;
+    }
+    .modal-content h3 { margin-top: 0; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; margin-bottom: 0.5rem; color: #8b949e; }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%;
       background: #0d1117;
       border: 1px solid #30363d;
       color: #e6edf3;
       padding: 0.5rem;
       border-radius: 4px;
+      font-family: inherit;
     }
+    .form-group textarea { min-height: 100px; font-family: monospace; }
+    .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem; }
+    
     #runner-status { margin-left: auto; }
   </style>
 </head>
@@ -153,23 +200,191 @@
   <h1>🦀 CloudClaw Dashboard</h1>
   <p class="subtitle">Manage your OpenClaw fleet</p>
 
+  <!-- Machines Card -->
+  <div class="card">
+    <h2>🖥️ Machines</h2>
+    <div id="machines-list" class="machine-list">
+      Loading...
+    </div>
+    <button onclick="showAddMachineModal()">+ Add Remote Machine</button>
+  </div>
+
+  <!-- Instances Card -->
   <div class="card">
     <h2>
-      Instances
+      🦀 Instances
       <span id="runner-status"></span>
     </h2>
-    <div class="new-instance-form">
+    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
       <button onclick="createInstance()">+ Deploy New Instance</button>
-      <span style="color: #8b949e; font-size: 0.875rem;">(Creates local instance for testing)</span>
+      <select id="deploy-machine" style="background: #0d1117; border: 1px solid #30363d; color: #e6edf3; padding: 0.5rem; border-radius: 4px;">
+        <option value="">on localhost</option>
+      </select>
     </div>
     <div id="instances-list" class="instance-list">
       <p class="empty">No instances yet. Deploy one to get started!</p>
     </div>
   </div>
 
+  <!-- Add Machine Modal -->
+  <div id="add-machine-modal" class="modal">
+    <div class="modal-content">
+      <h3>Add Remote Machine</h3>
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" id="machine-name" placeholder="my-server">
+      </div>
+      <div class="form-group">
+        <label>Host</label>
+        <input type="text" id="machine-host" placeholder="192.168.1.100 or hostname">
+      </div>
+      <div class="form-group">
+        <label>SSH Port</label>
+        <input type="number" id="machine-port" value="22">
+      </div>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="machine-username" value="root">
+      </div>
+      <div class="form-group">
+        <label>Auth Type</label>
+        <select id="machine-auth-type" onchange="toggleAuthFields()">
+          <option value="key">SSH Key</option>
+          <option value="password">Password</option>
+        </select>
+      </div>
+      <div class="form-group" id="ssh-key-group">
+        <label>SSH Private Key</label>
+        <textarea id="machine-ssh-key" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----
+...
+-----END OPENSSH PRIVATE KEY-----"></textarea>
+      </div>
+      <div class="form-group" id="password-group" style="display: none;">
+        <label>Password</label>
+        <input type="password" id="machine-password">
+      </div>
+      <div class="form-group">
+        <label>Runner Port (on remote machine)</label>
+        <input type="number" id="machine-runner-port" value="8080">
+      </div>
+      <div class="form-actions">
+        <button class="secondary" onclick="hideAddMachineModal()">Cancel</button>
+        <button onclick="addMachine()">Add Machine</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    // Store expanded state
     const expandedInstances = new Set();
+    let selectedMachine = 'localhost';
+
+    // ============ MACHINES ============
+    
+    async function loadMachines() {
+      try {
+        const res = await fetch('/api/machines');
+        const data = await res.json();
+        const list = document.getElementById('machines-list');
+        const select = document.getElementById('deploy-machine');
+        
+        list.innerHTML = data.machines.map(m => `
+          <div class="machine-item ${m.name === selectedMachine ? 'selected' : ''}" onclick="selectMachine('${m.name}')">
+            <span>${m.isLocal ? '🏠' : '☁️'}</span>
+            <span class="machine-name">${m.name}</span>
+            <span class="machine-host">${m.host}${m.port !== 22 ? ':' + m.port : ''}</span>
+            <span class="status ${m.status}">${m.status}</span>
+            ${!m.isLocal ? `<button class="danger" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" onclick="event.stopPropagation(); deleteMachine('${m.id}', '${m.name}')">✕</button>` : ''}
+          </div>
+        `).join('');
+
+        select.innerHTML = data.machines.map(m => 
+          `<option value="${m.id}" ${m.name === selectedMachine ? 'selected' : ''}>on ${m.name}</option>`
+        ).join('');
+      } catch (err) {
+        console.error('Failed to load machines:', err);
+      }
+    }
+
+    function selectMachine(name) {
+      selectedMachine = name;
+      loadMachines();
+    }
+
+    function showAddMachineModal() {
+      document.getElementById('add-machine-modal').classList.add('active');
+    }
+
+    function hideAddMachineModal() {
+      document.getElementById('add-machine-modal').classList.remove('active');
+      // Clear form
+      document.getElementById('machine-name').value = '';
+      document.getElementById('machine-host').value = '';
+      document.getElementById('machine-ssh-key').value = '';
+      document.getElementById('machine-password').value = '';
+    }
+
+    function toggleAuthFields() {
+      const authType = document.getElementById('machine-auth-type').value;
+      document.getElementById('ssh-key-group').style.display = authType === 'key' ? 'block' : 'none';
+      document.getElementById('password-group').style.display = authType === 'password' ? 'block' : 'none';
+    }
+
+    async function addMachine() {
+      const name = document.getElementById('machine-name').value.trim();
+      const host = document.getElementById('machine-host').value.trim();
+      const port = parseInt(document.getElementById('machine-port').value) || 22;
+      const username = document.getElementById('machine-username').value.trim() || 'root';
+      const authType = document.getElementById('machine-auth-type').value;
+      const sshKey = document.getElementById('machine-ssh-key').value.trim();
+      const password = document.getElementById('machine-password').value;
+      const runnerPort = parseInt(document.getElementById('machine-runner-port').value) || 8080;
+
+      if (!name || !host) {
+        alert('Name and host are required');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/machines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, host, port, username, authType, sshKey, password, runnerPort })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          hideAddMachineModal();
+          loadMachines();
+          
+          // Test the connection
+          const testRes = await fetch(`/api/machines/${data.id}/test`, { method: 'POST' });
+          const testData = await testRes.json();
+          if (testData.success) {
+            alert(`Machine added and connected!`);
+          } else {
+            alert(`Machine added but connection failed: ${testData.error}`);
+          }
+          loadMachines();
+        } else {
+          alert('Failed to add machine: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function deleteMachine(id, name) {
+      if (!confirm(`Delete machine "${name}"?`)) return;
+      
+      try {
+        await fetch(`/api/machines/${id}`, { method: 'DELETE' });
+        loadMachines();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // ============ INSTANCES ============
 
     async function checkHealth() {
       const el = document.getElementById('runner-status');
@@ -197,7 +412,9 @@
           return;
         }
 
-        list.innerHTML = data.instances.map(inst => `
+        list.innerHTML = data.instances.map(inst => {
+          const machineName = inst.config?.machineName || 'localhost';
+          return `
           <div class="instance-item" id="instance-${inst.id}">
             <div class="instance-header" onclick="toggleInstance('${inst.id}')">
               <div class="instance-info">
@@ -207,7 +424,7 @@
                   <span class="status ${inst.status}">${inst.status}</span>
                 </div>
                 <div class="instance-meta">
-                  ${inst.provider || 'local'} • ${inst.ipAddress || 'localhost'} • Created ${new Date(inst.createdAt).toLocaleString()}
+                  ${machineName} • ${inst.ipAddress || 'localhost'} • Created ${new Date(inst.createdAt).toLocaleString()}
                 </div>
               </div>
               <div class="instance-actions">
@@ -219,9 +436,8 @@
               <div id="session-list-${inst.id}">Loading sessions...</div>
             </div>
           </div>
-        `).join('');
+        `}).join('');
 
-        // Load sessions for expanded instances
         data.instances.forEach(inst => {
           if (expandedInstances.has(inst.id)) {
             loadSessionsForInstance(inst.id);
@@ -271,7 +487,6 @@
           </div>
         `).join('');
 
-        // Load tunnels for each session
         data.sessions.forEach(s => loadTunnels(s.sessionId));
       } catch (err) {
         console.error('Failed to load sessions:', err);
@@ -279,21 +494,19 @@
     }
 
     async function createInstance() {
+      const machineId = document.getElementById('deploy-machine').value;
+      
       try {
         const res = await fetch('/api/instances', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: 'local' })
+          body: JSON.stringify({ machineId: machineId || undefined })
         });
         
         const data = await res.json();
         if (res.ok) {
+          expandedInstances.add(data.id);
           loadInstances();
-          // Auto-expand new instance
-          setTimeout(() => {
-            expandedInstances.add(data.id);
-            loadInstances();
-          }, 100);
         } else {
           alert('Failed to create instance: ' + data.error);
         }
@@ -326,7 +539,6 @@
         if (res.ok) {
           expandedInstances.add(instanceId);
           loadInstances();
-          // Auto-open viewer
           window.open(data.view_url, '_blank');
         } else {
           alert('Failed to create session: ' + data.error);
@@ -438,10 +650,12 @@
 
     // Initial load
     checkHealth();
+    loadMachines();
     loadInstances();
 
     // Poll for updates
     setInterval(checkHealth, 10000);
+    setInterval(loadMachines, 30000);
     setInterval(loadInstances, 10000);
   </script>
 </body>

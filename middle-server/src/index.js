@@ -7,9 +7,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { SessionStore } from './session-store.js';
 import { InstanceStore } from './instance-store.js';
+import { MachineStore } from './machine-store.js';
 import { RunnerClient } from './runner-client.js';
 import { setupWebSocketProxy } from './ws-proxy.js';
 import { generateUniqueOceanName } from './ocean-names.js';
+import { SSHExecutor, testSSHConnection } from './ssh-executor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +25,7 @@ const RUNNER_TOKEN = process.env.RUNNER_TOKEN || 'dev-token';
 
 const sessionStore = new SessionStore();
 const instanceStore = new InstanceStore();
+const machineStore = new MachineStore();
 const runnerClient = new RunnerClient(RUNNER_URL, RUNNER_TOKEN);
 
 // Cache of runner clients per instance
@@ -59,6 +62,153 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// ============ MACHINE MANAGEMENT ============
+
+// List all machines
+app.get('/api/machines', (req, res) => {
+  const machines = machineStore.listAll();
+  res.json({ machines });
+});
+
+// Add a new machine
+app.post('/api/machines', async (req, res) => {
+  try {
+    const { name, host, port, username, authType, sshKey, password, runnerPort } = req.body;
+    
+    if (!name || !host) {
+      return res.status(400).json({ error: 'name and host are required' });
+    }
+
+    // Check if name is unique
+    if (machineStore.getByName(name)) {
+      return res.status(400).json({ error: 'Machine with this name already exists' });
+    }
+
+    const machine = machineStore.create({
+      name,
+      host,
+      port: port || 22,
+      username: username || 'root',
+      authType: authType || 'key',
+      sshKey,
+      password,
+      runnerPort: runnerPort || 8080
+    });
+
+    res.json(machine);
+  } catch (err) {
+    console.error('Failed to add machine:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get machine details
+app.get('/api/machines/:id', (req, res) => {
+  const machine = machineStore.get(req.params.id) || machineStore.getByName(req.params.id);
+  if (!machine) {
+    return res.status(404).json({ error: 'Machine not found' });
+  }
+  res.json(machine);
+});
+
+// Test SSH connection to machine
+app.post('/api/machines/:id/test', async (req, res) => {
+  const machine = machineStore.getRaw(req.params.id);
+  if (!machine) {
+    return res.status(404).json({ error: 'Machine not found' });
+  }
+
+  if (machine.is_local) {
+    return res.json({ success: true, message: 'Localhost - no SSH needed' });
+  }
+
+  try {
+    const result = await testSSHConnection(machine);
+    
+    // Update status based on result
+    machineStore.update(req.params.id, { 
+      status: result.success ? 'connected' : 'error' 
+    });
+
+    res.json(result);
+  } catch (err) {
+    machineStore.update(req.params.id, { status: 'error' });
+    res.json({ success: false, error: err.message });
+  }
+});
+
+// Check if Docker runner is running on machine
+app.get('/api/machines/:id/runner-status', async (req, res) => {
+  const machine = machineStore.getRaw(req.params.id);
+  if (!machine) {
+    return res.status(404).json({ error: 'Machine not found' });
+  }
+
+  if (machine.is_local) {
+    // Check local runner
+    try {
+      const health = await runnerClient.health();
+      return res.json({ running: true, health });
+    } catch {
+      return res.json({ running: false });
+    }
+  }
+
+  try {
+    const executor = new SSHExecutor(machine);
+    const running = await executor.checkRunner();
+    await executor.close();
+    res.json({ running });
+  } catch (err) {
+    res.json({ running: false, error: err.message });
+  }
+});
+
+// Start runner on remote machine
+app.post('/api/machines/:id/start-runner', async (req, res) => {
+  const machine = machineStore.getRaw(req.params.id);
+  if (!machine) {
+    return res.status(404).json({ error: 'Machine not found' });
+  }
+
+  if (machine.is_local) {
+    return res.json({ success: true, message: 'Local runner managed by Docker Compose' });
+  }
+
+  try {
+    const executor = new SSHExecutor(machine);
+    const success = await executor.startRunner(machine.runner_port || 8080);
+    await executor.close();
+    
+    if (success) {
+      // Update the docker_host for this machine
+      machineStore.update(req.params.id, {
+        dockerHost: `http://${machine.host}:${machine.runner_port || 8080}`,
+        status: 'running'
+      });
+    }
+
+    res.json({ success });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete machine
+app.delete('/api/machines/:id', (req, res) => {
+  try {
+    const machine = machineStore.get(req.params.id);
+    if (!machine) {
+      return res.status(404).json({ error: 'Machine not found' });
+    }
+    
+    machineStore.delete(req.params.id);
+    res.json({ status: 'deleted' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // ============ INSTANCE MANAGEMENT ============
 
 // Get runner client for an instance
@@ -80,27 +230,44 @@ app.get('/api/instances', (req, res) => {
   res.json({ instances });
 });
 
-// Create new instance (local/simulated for now)
+// Create new instance
 app.post('/api/instances', (req, res) => {
   try {
-    const { provider, region } = req.body;
+    const { provider, region, machineId } = req.body;
     
-    // For local/development, create a simulated instance pointing to the local runner
+    // Get the machine to deploy on
+    let machine = null;
+    if (machineId) {
+      machine = machineStore.get(machineId) || machineStore.getByName(machineId);
+      if (!machine) {
+        return res.status(400).json({ error: 'Machine not found' });
+      }
+    } else {
+      // Default to localhost
+      machine = machineStore.getByName('localhost');
+    }
+
+    // Create instance record
     const instance = instanceStore.create({
-      provider: provider || 'local',
-      region: region || 'local',
-      ipAddress: '127.0.0.1',
-      config: req.body.config || {}
+      provider: provider || (machine.isLocal ? 'local' : 'remote'),
+      region: region || machine.name,
+      ipAddress: machine.host,
+      config: { machineId: machine.id, machineName: machine.name, ...req.body.config }
     });
     
-    // For local instances, configure to use the local runner
-    if (!provider || provider === 'local') {
-      instanceStore.update(instance.id, {
-        status: 'running',
-        runnerUrl: RUNNER_URL,
-        runnerToken: RUNNER_TOKEN
-      });
+    // Configure runner URL based on machine
+    let runnerUrl = RUNNER_URL;
+    if (!machine.isLocal && machine.dockerHost) {
+      runnerUrl = machine.dockerHost;
+    } else if (!machine.isLocal) {
+      runnerUrl = `http://${machine.host}:${machine.runnerPort || 8080}`;
     }
+
+    instanceStore.update(instance.id, {
+      status: 'running',
+      runnerUrl: runnerUrl,
+      runnerToken: RUNNER_TOKEN
+    });
     
     res.json(instanceStore.get(instance.id));
   } catch (err) {
