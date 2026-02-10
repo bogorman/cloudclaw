@@ -15,6 +15,8 @@ export class SessionStore {
       CREATE TABLE IF NOT EXISTS sessions (
         session_id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
+        instance_id TEXT,
+        instance_name TEXT,
         runner_ws_target TEXT NOT NULL,
         runner_ws_port INTEGER NOT NULL,
         expires_at TEXT NOT NULL,
@@ -27,17 +29,27 @@ export class SessionStore {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)
     `);
+    
+    // Add new columns if they don't exist (migration)
+    try {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN instance_id TEXT');
+    } catch (e) { /* column exists */ }
+    try {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN instance_name TEXT');
+    } catch (e) { /* column exists */ }
   }
 
-  create({ sessionId, userId, runnerWsTarget, runnerWsPort, expiresAt }) {
+  create({ sessionId, userId, instanceId, instanceName, runnerWsTarget, runnerWsPort, expiresAt }) {
     const stmt = this.db.prepare(`
-      INSERT INTO sessions (session_id, user_id, runner_ws_target, runner_ws_port, expires_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO sessions (session_id, user_id, instance_id, instance_name, runner_ws_target, runner_ws_port, expires_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     stmt.run(
       sessionId,
       userId,
+      instanceId || null,
+      instanceName || 'local',
       runnerWsTarget,
       runnerWsPort,
       expiresAt.toISOString(),
@@ -55,6 +67,8 @@ export class SessionStore {
     return {
       sessionId: row.session_id,
       userId: row.user_id,
+      instanceId: row.instance_id,
+      instanceName: row.instance_name || 'local',
       runnerWsTarget: row.runner_ws_target,
       runnerWsPort: row.runner_ws_port,
       expiresAt: new Date(row.expires_at),
@@ -72,6 +86,8 @@ export class SessionStore {
     return stmt.all(userId).map(row => ({
       sessionId: row.session_id,
       userId: row.user_id,
+      instanceId: row.instance_id,
+      instanceName: row.instance_name || 'local',
       runnerWsTarget: row.runner_ws_target,
       expiresAt: new Date(row.expires_at),
       createdAt: new Date(row.created_at),

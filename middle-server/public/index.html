@@ -23,59 +23,85 @@
       padding: 1.5rem;
       margin-bottom: 1rem;
     }
-    .card h2 { margin-top: 0; }
+    .card h2 { margin-top: 0; display: flex; align-items: center; gap: 0.5rem; }
     button {
       background: #238636;
       color: white;
       border: none;
-      padding: 0.75rem 1.5rem;
+      padding: 0.5rem 1rem;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 1rem;
+      font-size: 0.875rem;
       font-weight: 500;
     }
     button:hover { background: #2ea043; }
     button:disabled { background: #30363d; cursor: not-allowed; }
+    button.secondary { background: #21262d; border: 1px solid #30363d; }
+    button.secondary:hover { background: #30363d; }
     button.danger { background: #da3633; }
     button.danger:hover { background: #f85149; }
-    .sessions-list { margin-top: 1rem; }
-    .session-item {
+    .instance-list, .sessions-list { margin-top: 1rem; }
+    .instance-item {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+    }
+    .instance-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 1rem;
+      cursor: pointer;
+    }
+    .instance-header:hover { background: #161b22; }
+    .instance-info { flex: 1; }
+    .instance-name { 
+      font-family: monospace; 
+      font-size: 1.1rem;
+      color: #58a6ff; 
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .instance-name .emoji { font-size: 1.3rem; }
+    .instance-meta { color: #8b949e; font-size: 0.875rem; margin-top: 0.25rem; }
+    .instance-actions { display: flex; gap: 0.5rem; }
+    .instance-sessions {
+      border-top: 1px solid #30363d;
+      padding: 1rem;
       background: #0d1117;
+      display: none;
+    }
+    .instance-sessions.expanded { display: block; }
+    .session-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem;
+      background: #161b22;
       border: 1px solid #30363d;
       border-radius: 6px;
       margin-bottom: 0.5rem;
     }
     .session-info { flex: 1; }
-    .session-id { font-family: monospace; color: #58a6ff; }
-    .session-expires { color: #8b949e; font-size: 0.875rem; }
+    .session-id { font-family: monospace; color: #7ee787; font-size: 0.875rem; }
+    .session-expires { color: #8b949e; font-size: 0.75rem; }
     .session-actions { display: flex; gap: 0.5rem; }
-    .session-actions button { padding: 0.5rem 1rem; font-size: 0.875rem; }
+    .session-actions button { padding: 0.4rem 0.75rem; font-size: 0.75rem; }
     .status {
       display: inline-block;
-      padding: 0.25rem 0.5rem;
+      padding: 0.2rem 0.5rem;
       border-radius: 4px;
       font-size: 0.75rem;
       font-weight: 500;
     }
-    .status.ok { background: #238636; }
+    .status.running { background: #238636; }
+    .status.pending { background: #9e6a03; }
+    .status.stopped { background: #6e7681; }
     .status.error { background: #da3633; }
-    .options { margin: 1rem 0; }
-    .options label { display: block; margin-bottom: 0.5rem; color: #8b949e; }
-    .options input, .options select {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      color: #e6edf3;
-      padding: 0.5rem;
-      border-radius: 4px;
-      width: 150px;
-    }
-    .options-row { display: flex; gap: 1rem; flex-wrap: wrap; }
-    #health-status { margin-left: 1rem; }
-    .empty { color: #8b949e; font-style: italic; }
+    .empty { color: #8b949e; font-style: italic; padding: 1rem; text-align: center; }
     .session-tunnels { margin-top: 0.5rem; }
     .tunnel-item {
       display: flex;
@@ -106,64 +132,125 @@
       padding: 0.1rem 0.3rem;
       font-size: 0.75rem;
     }
-    .tunnel-close:hover { color: #da3633; }
+    .tunnel-close:hover { color: #da3633; background: transparent; }
+    .new-instance-form {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .new-instance-form select {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      padding: 0.5rem;
+      border-radius: 4px;
+    }
+    #runner-status { margin-left: auto; }
   </style>
 </head>
 <body>
-  <h1>☁️ CloudClaw Dashboard</h1>
-  <p class="subtitle">Human-in-the-loop browser sessions via noVNC</p>
+  <h1>🦀 CloudClaw Dashboard</h1>
+  <p class="subtitle">Manage your OpenClaw fleet</p>
 
   <div class="card">
-    <h2>Create Session <span id="health-status"></span></h2>
-    <div class="options">
-      <div class="options-row">
-        <div>
-          <label>Resolution</label>
-          <select id="resolution">
-            <option value="1920x1080">1920×1080</option>
-            <option value="1280x720">1280×720</option>
-            <option value="1024x768">1024×768</option>
-          </select>
-        </div>
-        <div>
-          <label>TTL (minutes)</label>
-          <input type="number" id="ttl" value="15" min="1" max="60">
-        </div>
-      </div>
+    <h2>
+      Instances
+      <span id="runner-status"></span>
+    </h2>
+    <div class="new-instance-form">
+      <button onclick="createInstance()">+ Deploy New Instance</button>
+      <span style="color: #8b949e; font-size: 0.875rem;">(Creates local instance for testing)</span>
     </div>
-    <button id="create-btn" onclick="createSession()">Create Interactive Session</button>
-  </div>
-
-  <div class="card">
-    <h2>Active Sessions</h2>
-    <div id="sessions-list" class="sessions-list">
-      <p class="empty">No active sessions</p>
+    <div id="instances-list" class="instance-list">
+      <p class="empty">No instances yet. Deploy one to get started!</p>
     </div>
   </div>
 
   <script>
+    // Store expanded state
+    const expandedInstances = new Set();
+
     async function checkHealth() {
-      const el = document.getElementById('health-status');
+      const el = document.getElementById('runner-status');
       try {
         const res = await fetch('/api/health');
         const data = await res.json();
         if (data.runner?.status === 'ok') {
-          el.innerHTML = '<span class="status ok">Runner: Connected</span>';
+          el.innerHTML = '<span class="status running">Local Runner: Connected</span>';
         } else {
-          el.innerHTML = '<span class="status error">Runner: ' + (data.runner?.error || 'Disconnected') + '</span>';
+          el.innerHTML = '<span class="status error">Local Runner: ' + (data.runner?.error || 'Disconnected') + '</span>';
         }
       } catch (err) {
         el.innerHTML = '<span class="status error">Health check failed</span>';
       }
     }
 
-    async function loadSessions() {
+    async function loadInstances() {
       try {
-        const res = await fetch('/api/sessions');
+        const res = await fetch('/api/instances');
         const data = await res.json();
-        const list = document.getElementById('sessions-list');
+        const list = document.getElementById('instances-list');
         
-        if (data.sessions.length === 0) {
+        if (data.instances.length === 0) {
+          list.innerHTML = '<p class="empty">No instances yet. Deploy one to get started!</p>';
+          return;
+        }
+
+        list.innerHTML = data.instances.map(inst => `
+          <div class="instance-item" id="instance-${inst.id}">
+            <div class="instance-header" onclick="toggleInstance('${inst.id}')">
+              <div class="instance-info">
+                <div class="instance-name">
+                  <span class="emoji">🦀</span>
+                  ${inst.name}
+                  <span class="status ${inst.status}">${inst.status}</span>
+                </div>
+                <div class="instance-meta">
+                  ${inst.provider || 'local'} • ${inst.ipAddress || 'localhost'} • Created ${new Date(inst.createdAt).toLocaleString()}
+                </div>
+              </div>
+              <div class="instance-actions">
+                <button class="secondary" onclick="event.stopPropagation(); createSessionOnInstance('${inst.id}', '${inst.name}')">+ Session</button>
+                <button class="danger" onclick="event.stopPropagation(); deleteInstance('${inst.id}', '${inst.name}')">Delete</button>
+              </div>
+            </div>
+            <div class="instance-sessions ${expandedInstances.has(inst.id) ? 'expanded' : ''}" id="sessions-${inst.id}">
+              <div id="session-list-${inst.id}">Loading sessions...</div>
+            </div>
+          </div>
+        `).join('');
+
+        // Load sessions for expanded instances
+        data.instances.forEach(inst => {
+          if (expandedInstances.has(inst.id)) {
+            loadSessionsForInstance(inst.id);
+          }
+        });
+      } catch (err) {
+        console.error('Failed to load instances:', err);
+      }
+    }
+
+    function toggleInstance(instanceId) {
+      const sessionsEl = document.getElementById(`sessions-${instanceId}`);
+      if (sessionsEl.classList.contains('expanded')) {
+        sessionsEl.classList.remove('expanded');
+        expandedInstances.delete(instanceId);
+      } else {
+        sessionsEl.classList.add('expanded');
+        expandedInstances.add(instanceId);
+        loadSessionsForInstance(instanceId);
+      }
+    }
+
+    async function loadSessionsForInstance(instanceId) {
+      try {
+        const res = await fetch(`/api/instances/${instanceId}/sessions`);
+        const data = await res.json();
+        const list = document.getElementById(`session-list-${instanceId}`);
+        
+        if (!data.sessions || data.sessions.length === 0) {
           list.innerHTML = '<p class="empty">No active sessions</p>';
           return;
         }
@@ -171,19 +258,19 @@
         list.innerHTML = data.sessions.map(s => `
           <div class="session-item">
             <div class="session-info">
-              <div class="session-id">${s.sessionId}</div>
+              <div class="session-id">${s.sessionId.substring(0, 8)}...</div>
               <div class="session-expires">Expires: ${new Date(s.expiresAt).toLocaleTimeString()}</div>
               <div class="session-tunnels" id="tunnels-${s.sessionId}"></div>
             </div>
             <div class="session-actions">
-              <button onclick="launchChrome('${s.sessionId}')">🌐 Chrome</button>
-              <button onclick="createTunnel('${s.sessionId}')">🔗 Share</button>
-              <button onclick="openViewer('${s.sessionId}')">👁 View</button>
-              <button class="danger" onclick="stopSession('${s.sessionId}')">Stop</button>
+              <button onclick="launchChrome('${s.sessionId}')">🌐</button>
+              <button onclick="createTunnel('${s.sessionId}')">🔗</button>
+              <button onclick="openViewer('${s.sessionId}')">👁</button>
+              <button class="danger" onclick="stopSession('${s.sessionId}', '${instanceId}')">✕</button>
             </div>
           </div>
         `).join('');
-        
+
         // Load tunnels for each session
         data.sessions.forEach(s => loadTunnels(s.sessionId));
       } catch (err) {
@@ -191,24 +278,54 @@
       }
     }
 
-    async function createSession() {
-      const btn = document.getElementById('create-btn');
-      btn.disabled = true;
-      btn.textContent = 'Creating...';
-
+    async function createInstance() {
       try {
-        const [width, height] = document.getElementById('resolution').value.split('x').map(Number);
-        const ttl = parseInt(document.getElementById('ttl').value) * 60;
-
-        const res = await fetch('/api/sessions', {
+        const res = await fetch('/api/instances', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ width, height, ttl_seconds: ttl })
+          body: JSON.stringify({ provider: 'local' })
+        });
+        
+        const data = await res.json();
+        if (res.ok) {
+          loadInstances();
+          // Auto-expand new instance
+          setTimeout(() => {
+            expandedInstances.add(data.id);
+            loadInstances();
+          }, 100);
+        } else {
+          alert('Failed to create instance: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function deleteInstance(instanceId, name) {
+      if (!confirm(`Delete instance "${name}"? This will stop all sessions.`)) return;
+      
+      try {
+        await fetch(`/api/instances/${instanceId}`, { method: 'DELETE' });
+        expandedInstances.delete(instanceId);
+        loadInstances();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function createSessionOnInstance(instanceId, instanceName) {
+      try {
+        const res = await fetch(`/api/instances/${instanceId}/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ width: 1280, height: 720, ttl_seconds: 900 })
         });
 
         const data = await res.json();
         if (res.ok) {
-          loadSessions();
+          expandedInstances.add(instanceId);
+          loadInstances();
           // Auto-open viewer
           window.open(data.view_url, '_blank');
         } else {
@@ -216,14 +333,22 @@
         }
       } catch (err) {
         alert('Error: ' + err.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Create Interactive Session';
       }
     }
 
     function openViewer(sessionId) {
       window.open(`/sessions/${sessionId}/view`, '_blank');
+    }
+
+    async function stopSession(sessionId, instanceId) {
+      if (!confirm('Stop this session?')) return;
+      
+      try {
+        await fetch(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
+        loadSessionsForInstance(instanceId);
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
     }
 
     async function launchChrome(sessionId) {
@@ -237,11 +362,10 @@
           body: JSON.stringify({ url })
         });
 
-        const data = await res.json();
         if (res.ok) {
-          // Also open the viewer
           window.open(`/sessions/${sessionId}/view`, '_blank');
         } else {
+          const data = await res.json();
           alert('Failed to launch Chrome: ' + data.error);
         }
       } catch (err) {
@@ -250,7 +374,7 @@
     }
 
     async function createTunnel(sessionId) {
-      const port = prompt('Enter local port to share (e.g., 3000, 8080):', '3000');
+      const port = prompt('Enter local port to share:', '3000');
       if (!port) return;
 
       const portNum = parseInt(port);
@@ -260,10 +384,6 @@
       }
 
       try {
-        const btn = event.target;
-        btn.disabled = true;
-        btn.textContent = '⏳ Creating...';
-
         const res = await fetch(`/api/sessions/${sessionId}/tunnels`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -273,7 +393,6 @@
         const data = await res.json();
         if (res.ok) {
           loadTunnels(sessionId);
-          // Copy URL to clipboard
           navigator.clipboard.writeText(data.url);
           alert(`Tunnel created!\\n\\nURL: ${data.url}\\n\\n(Copied to clipboard)`);
         } else {
@@ -281,8 +400,6 @@
         }
       } catch (err) {
         alert('Error: ' + err.message);
-      } finally {
-        loadSessions();
       }
     }
 
@@ -319,24 +436,13 @@
       }
     }
 
-    async function stopSession(sessionId) {
-      if (!confirm('Stop this session?')) return;
-      
-      try {
-        await fetch(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
-        loadSessions();
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
-    }
-
     // Initial load
     checkHealth();
-    loadSessions();
+    loadInstances();
 
     // Poll for updates
     setInterval(checkHealth, 10000);
-    setInterval(loadSessions, 5000);
+    setInterval(loadInstances, 10000);
   </script>
 </body>
 </html>

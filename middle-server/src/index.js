@@ -6,8 +6,10 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { SessionStore } from './session-store.js';
+import { InstanceStore } from './instance-store.js';
 import { RunnerClient } from './runner-client.js';
 import { setupWebSocketProxy } from './ws-proxy.js';
+import { generateUniqueOceanName } from './ocean-names.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,7 +22,11 @@ const RUNNER_URL = process.env.RUNNER_URL || 'http://127.0.0.1:8080';
 const RUNNER_TOKEN = process.env.RUNNER_TOKEN || 'dev-token';
 
 const sessionStore = new SessionStore();
+const instanceStore = new InstanceStore();
 const runnerClient = new RunnerClient(RUNNER_URL, RUNNER_TOKEN);
+
+// Cache of runner clients per instance
+const runnerClients = new Map();
 
 // Session middleware
 const sessionMiddleware = session({
@@ -45,13 +51,159 @@ app.use((req, res, next) => {
 // Health check
 app.get('/api/health', async (req, res) => {
   try {
-    // Also check runner health
+    // Check local runner health
     const runnerHealth = await runnerClient.health();
     res.json({ status: 'ok', runner: runnerHealth });
   } catch (err) {
     res.json({ status: 'ok', runner: { status: 'unreachable', error: err.message } });
   }
 });
+
+// ============ INSTANCE MANAGEMENT ============
+
+// Get runner client for an instance
+function getRunnerClient(instance) {
+  if (!instance.runnerUrl) {
+    throw new Error('Instance has no runner URL configured');
+  }
+  
+  const key = instance.id;
+  if (!runnerClients.has(key)) {
+    runnerClients.set(key, new RunnerClient(instance.runnerUrl, instance.runnerToken || 'dev-token'));
+  }
+  return runnerClients.get(key);
+}
+
+// List all instances
+app.get('/api/instances', (req, res) => {
+  const instances = instanceStore.listAll();
+  res.json({ instances });
+});
+
+// Create new instance (local/simulated for now)
+app.post('/api/instances', (req, res) => {
+  try {
+    const { provider, region } = req.body;
+    
+    // For local/development, create a simulated instance pointing to the local runner
+    const instance = instanceStore.create({
+      provider: provider || 'local',
+      region: region || 'local',
+      ipAddress: '127.0.0.1',
+      config: req.body.config || {}
+    });
+    
+    // For local instances, configure to use the local runner
+    if (!provider || provider === 'local') {
+      instanceStore.update(instance.id, {
+        status: 'running',
+        runnerUrl: RUNNER_URL,
+        runnerToken: RUNNER_TOKEN
+      });
+    }
+    
+    res.json(instanceStore.get(instance.id));
+  } catch (err) {
+    console.error('Failed to create instance:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get instance details
+app.get('/api/instances/:id', async (req, res) => {
+  const instance = instanceStore.get(req.params.id) || instanceStore.getByName(req.params.id);
+  if (!instance) {
+    return res.status(404).json({ error: 'Instance not found' });
+  }
+  
+  // Try to get health status
+  if (instance.runnerUrl) {
+    try {
+      const client = getRunnerClient(instance);
+      const health = await client.health();
+      res.json({ ...instance, runner: health });
+    } catch (err) {
+      res.json({ ...instance, runner: { status: 'unreachable', error: err.message } });
+    }
+  } else {
+    res.json(instance);
+  }
+});
+
+// Delete instance
+app.delete('/api/instances/:id', (req, res) => {
+  const instance = instanceStore.get(req.params.id) || instanceStore.getByName(req.params.id);
+  if (!instance) {
+    return res.status(404).json({ error: 'Instance not found' });
+  }
+  
+  // Clean up sessions
+  instanceStore.deleteSessionsByInstance(instance.id);
+  runnerClients.delete(instance.id);
+  instanceStore.delete(instance.id);
+  
+  res.json({ status: 'deleted' });
+});
+
+// Create session on specific instance
+app.post('/api/instances/:id/sessions', async (req, res) => {
+  const instance = instanceStore.get(req.params.id) || instanceStore.getByName(req.params.id);
+  if (!instance) {
+    return res.status(404).json({ error: 'Instance not found' });
+  }
+  
+  if (instance.status !== 'running') {
+    return res.status(400).json({ error: 'Instance is not running' });
+  }
+
+  try {
+    const { width = 1920, height = 1080, ttl_seconds = 900 } = req.body;
+    const sessionId = uuidv4();
+    const client = getRunnerClient(instance);
+
+    const runnerSession = await client.createSession({
+      session_id: sessionId,
+      width,
+      height,
+      ttl_seconds
+    });
+
+    // Store session locally too
+    sessionStore.create({
+      sessionId,
+      userId: req.session.userId,
+      instanceId: instance.id,
+      instanceName: instance.name,
+      runnerWsTarget: runnerSession.ws_target,
+      runnerWsPort: runnerSession.ws_port,
+      expiresAt: new Date(runnerSession.expires_at)
+    });
+
+    res.json({
+      session_id: sessionId,
+      instance_name: instance.name,
+      view_url: `/sessions/${sessionId}/view`,
+      expires_at: runnerSession.expires_at
+    });
+  } catch (err) {
+    console.error('Failed to create session on instance:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List sessions for instance
+app.get('/api/instances/:id/sessions', (req, res) => {
+  const instance = instanceStore.get(req.params.id) || instanceStore.getByName(req.params.id);
+  if (!instance) {
+    return res.status(404).json({ error: 'Instance not found' });
+  }
+  
+  const allSessions = sessionStore.listByUser(req.session.userId);
+  const sessions = allSessions.filter(s => s.instanceId === instance.id);
+  res.json({ sessions });
+});
+
+// ============ SESSION MANAGEMENT (backward compatible) ============
 
 // Create interactive session
 app.post('/api/sessions', async (req, res) => {
