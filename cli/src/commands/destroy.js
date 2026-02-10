@@ -1,25 +1,22 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
-import { loadDeployment, saveDeployment, deleteSSHKey } from '../services/config.js';
+import { deleteSSHKey } from '../services/config.js';
 import { createHetznerClient } from '../providers/hetzner.js';
 import { createDigitalOceanClient } from '../providers/digitalocean.js';
+import { requireInstance } from '../services/resolver.js';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
-export async function destroy(name, options) {
-  const deployment = loadDeployment(name);
-  if (!deployment) {
-    console.log(chalk.red(`Deployment "${name}" not found.`));
-    return;
-  }
+export async function destroy(nameOrId, options) {
+  const { name, deployment } = await requireInstance(nameOrId, 'destroy');
 
   if (!options.force) {
     const { confirm } = await inquirer.prompt([{
       type: 'confirm',
       name: 'confirm',
-      message: `Are you sure you want to destroy "${name}"? This will delete the server.`,
+      message: `Are you sure you want to destroy "${chalk.bold(name)}"? This will delete the server.`,
       default: false
     }]);
 
@@ -29,7 +26,7 @@ export async function destroy(name, options) {
     }
   }
 
-  const spinner = ora('Destroying deployment...').start();
+  const spinner = ora(`Destroying ${name}...`).start();
 
   try {
     if (deployment.provider === 'hetzner' && deployment.hetzner) {
@@ -86,7 +83,7 @@ export async function destroy(name, options) {
       unlinkSync(deploymentPath);
     } catch {}
 
-    spinner.succeed(`Deployment "${name}" destroyed`);
+    spinner.succeed(`${chalk.bold(name)} destroyed 🌊`);
   } catch (err) {
     spinner.fail(`Error: ${err.message}`);
   }

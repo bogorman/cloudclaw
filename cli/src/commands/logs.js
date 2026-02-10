@@ -1,14 +1,11 @@
 import chalk from 'chalk';
-import { loadDeployment, loadSSHKey } from '../services/config.js';
+import { loadSSHKey } from '../services/config.js';
 import { createSSHConnection } from '../services/ssh.js';
 import { getOpenClawLogs } from '../services/setup.js';
+import { requireInstance } from '../services/resolver.js';
 
-export async function logs(name, options) {
-  const deployment = loadDeployment(name);
-  if (!deployment) {
-    console.log(chalk.red(`Deployment "${name}" not found.`));
-    return;
-  }
+export async function logs(nameOrId, options) {
+  const { name, deployment } = await requireInstance(nameOrId, 'logs');
 
   if (!deployment.serverIp) {
     console.log(chalk.red('No server IP found. Deploy first.'));
@@ -22,7 +19,7 @@ export async function logs(name, options) {
 
     if (options.follow) {
       // Follow mode - use journalctl -f
-      console.log(chalk.cyan(`\n📜 Following logs for ${name}... (Ctrl+C to stop)\n`));
+      console.log(chalk.cyan(`\n📜 Following logs for ${chalk.bold(name)}... (Ctrl+C to stop)\n`));
       
       const { spawn } = await import('child_process');
       const { join } = await import('path');
@@ -44,7 +41,7 @@ export async function logs(name, options) {
         process.exit(0);
       });
     } else {
-      console.log(chalk.cyan(`\n📜 Logs for ${name}\n`));
+      console.log(chalk.cyan(`\n📜 Logs for ${chalk.bold(name)}\n`));
       
       const logs = await getOpenClawLogs(ssh, parseInt(options.lines) || 50);
       console.log(logs);

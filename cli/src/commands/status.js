@@ -1,22 +1,14 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadDeployment, loadSSHKey } from '../services/config.js';
+import { loadSSHKey } from '../services/config.js';
 import { createSSHConnection } from '../services/ssh.js';
 import { isOpenClawRunning } from '../services/setup.js';
+import { requireInstance } from '../services/resolver.js';
 
-export async function status(name) {
-  if (!name) {
-    console.log(chalk.red('Usage: cloudclaw status <name>'));
-    return;
-  }
+export async function status(nameOrId) {
+  const { name, deployment } = await requireInstance(nameOrId, 'status');
 
-  const deployment = loadDeployment(name);
-  if (!deployment) {
-    console.log(chalk.red(`Deployment "${name}" not found.`));
-    return;
-  }
-
-  console.log(chalk.cyan(`\n📊 Status: ${name}\n`));
+  console.log(chalk.cyan(`\n🦀 ${chalk.bold(name)}\n`));
 
   const statusColors = {
     created: chalk.yellow,
@@ -25,9 +17,17 @@ export async function status(name) {
     failed: chalk.red
   };
   
+  const statusIcons = {
+    created: '⚪',
+    deploying: '🔵',
+    deployed: '🟢',
+    failed: '🔴'
+  };
+  
+  const statusIcon = statusIcons[deployment.status] || '⚫';
   const statusColor = statusColors[deployment.status] || chalk.dim;
   
-  console.log(`  ${chalk.dim('Status:')}      ${statusColor(deployment.status)}`);
+  console.log(`  ${chalk.dim('Status:')}      ${statusIcon} ${statusColor(deployment.status)}`);
   console.log(`  ${chalk.dim('Provider:')}    ${deployment.provider}`);
   
   if (deployment.serverIp) {

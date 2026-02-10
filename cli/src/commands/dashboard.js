@@ -1,24 +1,25 @@
 import chalk from 'chalk';
 import open from 'open';
-import { loadDeployment } from '../services/config.js';
+import { requireInstance } from '../services/resolver.js';
 
-export async function dashboard(name) {
-  const deployment = loadDeployment(name);
-  if (!deployment) {
-    console.log(chalk.red(`Deployment "${name}" not found.`));
-    return;
-  }
+export async function dashboard(nameOrId) {
+  const { name, deployment } = await requireInstance(nameOrId, 'dashboard');
 
   if (deployment.status !== 'deployed') {
-    console.log(chalk.red('Deployment is not running. Deploy first.'));
+    console.log(chalk.red(`Instance "${name}" is not deployed yet.`));
     return;
   }
 
-  const host = deployment.tailscaleIp || deployment.serverIp;
-  const url = `http://${host}:18789/?token=${deployment.gatewayToken}`;
+  const ip = deployment.tailscaleIp || deployment.serverIp;
+  if (!ip) {
+    console.log(chalk.red('No IP address found.'));
+    return;
+  }
 
-  console.log(chalk.cyan(`\n🌐 Opening dashboard for ${name}...\n`));
-  console.log(chalk.dim(`URL: ${url}\n`));
+  const url = `http://${ip}:18789/?token=${deployment.gatewayToken}`;
+  
+  console.log(chalk.cyan(`\n🖥️  Opening dashboard for ${chalk.bold(name)}...\n`));
+  console.log(`  ${chalk.dim('URL:')} ${url}\n`);
 
   await open(url);
 }

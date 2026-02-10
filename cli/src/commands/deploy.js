@@ -2,10 +2,11 @@ import ora from 'ora';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import open from 'open';
-import { loadDeployment, saveDeployment, saveSSHKey, loadSSHKey } from '../services/config.js';
+import { saveDeployment, saveSSHKey, loadSSHKey } from '../services/config.js';
 import { generateSSHKeyPair, createSSHConnection, waitForSSH } from '../services/ssh.js';
 import { createHetznerClient } from '../providers/hetzner.js';
 import { createDigitalOceanClient } from '../providers/digitalocean.js';
+import { requireInstance } from '../services/resolver.js';
 import * as setup from '../services/setup.js';
 
 const CHECKPOINTS = [
@@ -26,19 +27,10 @@ const CHECKPOINTS = [
   'completed'
 ];
 
-export async function deploy(name) {
-  if (!name) {
-    console.log(chalk.red('Usage: cloudclaw deploy <name>'));
-    return;
-  }
+export async function deploy(nameOrId) {
+  const { name, deployment } = await requireInstance(nameOrId, 'deploy');
 
-  const deployment = loadDeployment(name);
-  if (!deployment) {
-    console.log(chalk.red(`Deployment "${name}" not found. Run 'cloudclaw new' first.`));
-    return;
-  }
-
-  console.log(chalk.cyan(`\n🚀 Deploying ${name}...\n`));
+  console.log(chalk.cyan(`\n🚀 Deploying ${chalk.bold(name)}...\n`));
 
   const spinner = ora();
   let ssh = null;
@@ -222,7 +214,7 @@ export async function deploy(name) {
 
     ssh.disconnect();
 
-    console.log(chalk.green(`\n✅ Deployment complete!`));
+    console.log(chalk.green(`\n✅ ${chalk.bold(name)} deployed! 🦀`));
     console.log(chalk.dim(`\nServer IP: ${deployment.serverIp}`));
     if (deployment.tailscaleIp) {
       console.log(chalk.dim(`Tailscale IP: ${deployment.tailscaleIp}`));

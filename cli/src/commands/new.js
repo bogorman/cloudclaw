@@ -1,18 +1,24 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { randomBytes } from 'crypto';
-import { saveDeployment, setConfig, getConfig } from '../services/config.js';
+import { saveDeployment, setConfig, getConfig, listDeployments } from '../services/config.js';
 import { HETZNER_SERVER_TYPES, HETZNER_LOCATIONS } from '../providers/hetzner.js';
 import { DO_SIZES, DO_REGIONS } from '../providers/digitalocean.js';
+import { generateUniqueOceanName } from '../utils/ocean-names.js';
 
 export async function newDeployment() {
-  console.log(chalk.cyan('\n📋 Create a new CloudClaw deployment\n'));
+  console.log(chalk.cyan('\n🦀 Create a new CloudClaw instance\n'));
+
+  // Generate a suggested ocean name
+  const existingNames = listDeployments();
+  const suggestedName = generateUniqueOceanName(existingNames);
 
   const answers = await inquirer.prompt([
     {
       type: 'input',
       name: 'name',
-      message: 'Deployment name:',
+      message: 'Instance name:',
+      default: suggestedName,
       validate: (v) => /^[a-z0-9-]+$/.test(v) || 'Use lowercase letters, numbers, and hyphens only'
     },
     {
@@ -25,6 +31,20 @@ export async function newDeployment() {
       ]
     }
   ]);
+
+  // Check for name collision
+  if (existingNames.includes(answers.name)) {
+    const { overwrite } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'overwrite',
+      message: `Instance "${answers.name}" already exists. Overwrite?`,
+      default: false
+    }]);
+    if (!overwrite) {
+      console.log(chalk.dim('Cancelled.'));
+      return;
+    }
+  }
 
   // Provider-specific config
   let providerConfig = {};
@@ -207,6 +227,7 @@ export async function newDeployment() {
 
   saveDeployment(answers.name, deployment);
 
-  console.log(chalk.green(`\n✅ Deployment "${answers.name}" created!`));
+  console.log(chalk.green(`\n✅ Instance "${chalk.bold(answers.name)}" created!`));
   console.log(chalk.dim(`\nRun ${chalk.cyan(`cloudclaw deploy ${answers.name}`)} to deploy.`));
+  console.log(chalk.dim(`Or just ${chalk.cyan('cloudclaw deploy')} to pick from list.`));
 }

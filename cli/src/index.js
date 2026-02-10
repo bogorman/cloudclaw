@@ -18,46 +18,46 @@ program
 
 program
   .command('new')
-  .description('Create a new deployment configuration')
+  .description('Create a new instance configuration')
   .action(newDeployment);
 
 program
   .command('deploy [name]')
-  .description('Deploy OpenClaw to a VPS')
+  .description('Deploy an instance to a VPS')
   .action(deploy);
 
 program
   .command('status [name]')
-  .description('Show deployment status')
+  .description('Show instance status (picks interactively if not specified)')
   .action(status);
 
 program
   .command('list')
   .alias('ls')
-  .description('List all deployments')
+  .description('List all instances')
   .action(list);
 
 program
-  .command('ssh <name>')
-  .description('SSH into a deployment')
+  .command('ssh [name]')
+  .description('SSH into an instance')
   .action(ssh);
 
 program
-  .command('logs <name>')
+  .command('logs [name]')
   .option('-f, --follow', 'Follow log output')
   .option('-n, --lines <n>', 'Number of lines', '50')
   .description('View OpenClaw logs')
   .action(logs);
 
 program
-  .command('dashboard <name>')
+  .command('dashboard [name]')
   .description('Open the OpenClaw dashboard')
   .action(dashboard);
 
 program
-  .command('destroy <name>')
+  .command('destroy [name]')
   .option('-f, --force', 'Skip confirmation')
-  .description('Destroy a deployment')
+  .description('Destroy an instance')
   .action(destroy);
 
 console.log(chalk.cyan(`

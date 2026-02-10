@@ -1,51 +1,61 @@
 import chalk from 'chalk';
-import { readdirSync, existsSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
-import { loadDeployment } from '../services/config.js';
-
-const DEPLOYMENTS_DIR = join(homedir(), '.cloudclaw', 'deployments');
+import { listDeployments, loadDeployment } from '../services/config.js';
 
 export async function list() {
-  if (!existsSync(DEPLOYMENTS_DIR)) {
-    console.log(chalk.dim('\nNo deployments found. Run `cloudclaw new` to create one.\n'));
+  const deployments = listDeployments();
+
+  if (deployments.length === 0) {
+    console.log(chalk.dim('\nNo instances found. Run `cloudclaw new` to create one.\n'));
     return;
   }
 
-  const files = readdirSync(DEPLOYMENTS_DIR).filter(f => f.endsWith('.json'));
-  
-  if (files.length === 0) {
-    console.log(chalk.dim('\nNo deployments found. Run `cloudclaw new` to create one.\n'));
-    return;
-  }
+  console.log(chalk.cyan('\n🦀 Instances\n'));
 
-  console.log(chalk.cyan('\n📦 Deployments\n'));
+  const statusIcons = {
+    created: '⚪',
+    deploying: '🔵',
+    deployed: '🟢',
+    failed: '🔴'
+  };
 
-  for (const file of files) {
-    const name = file.replace('.json', '');
+  for (const name of deployments) {
     const deployment = loadDeployment(name);
+    const status = deployment?.status || 'unknown';
+    const icon = statusIcons[status] || '⚫';
     
-    const statusColors = {
-      created: chalk.yellow,
-      deploying: chalk.blue,
-      deployed: chalk.green,
-      failed: chalk.red
-    };
+    // Instance name with status
+    console.log(`  ${icon} ${chalk.bold(name)}`);
     
-    const statusColor = statusColors[deployment.status] || chalk.dim;
-    const status = statusColor(deployment.status || 'unknown');
+    // Provider and IPs
+    const details = [];
+    if (deployment.provider) details.push(deployment.provider);
+    if (deployment.serverIp) details.push(deployment.serverIp);
+    if (deployment.tailscaleIp) details.push(`ts:${deployment.tailscaleIp}`);
     
-    console.log(`  ${chalk.bold(name)}`);
-    console.log(`    Status: ${status}`);
-    console.log(`    Provider: ${deployment.provider}`);
-    
-    if (deployment.serverIp) {
-      console.log(`    IP: ${deployment.serverIp}`);
+    if (details.length > 0) {
+      console.log(`     ${chalk.dim(details.join(' • '))}`);
     }
-    if (deployment.tailscaleIp) {
-      console.log(`    Tailscale: ${deployment.tailscaleIp}`);
+    
+    // Time info
+    if (deployment.deployedAt) {
+      const ago = timeAgo(new Date(deployment.deployedAt));
+      console.log(`     ${chalk.dim(`deployed ${ago}`)}`);
+    } else if (deployment.createdAt) {
+      const ago = timeAgo(new Date(deployment.createdAt));
+      console.log(`     ${chalk.dim(`created ${ago}`)}`);
     }
     
     console.log('');
   }
+}
+
+function timeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  
+  return date.toLocaleDateString();
 }
