@@ -24,18 +24,40 @@ Control Chrome remotely through the browser:
 
 ## What is CloudClaw?
 
-CloudClaw combines:
+CloudClaw is a fleet manager for OpenClaw instances. Deploy multiple AI agents to the cloud and manage them from a single dashboard.
+
+**Key capabilities:**
 - **VPS Provisioning**: Deploy to Hetzner or DigitalOcean with one command
-- **Full Stack Setup**: Node.js, Chrome, OpenClaw, Tailscale — all automated
+- **Full Stack Setup**: Node.js, Chrome, OpenClaw, cloudflared — all automated
 - **Visual Browser Sessions**: View and control Chrome via noVNC when needed
 - **Human-in-the-Loop**: When Playwright hits a login page, users can manually authenticate
+- **Instant Sharing**: Expose any port via Cloudflare Quick Tunnels
 
 ```
-┌─────────────────┐     HTTPS      ┌─────────────────┐    Private    ┌─────────────────┐
-│     Browser     │◄──────────────►│  Middle Server  │◄─────────────►│     Runner      │
-│   (noVNC UI)    │                │   (Dashboard)   │               │  (Agent + VNC)  │
-└─────────────────┘                └─────────────────┘               └─────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    CloudClaw Dashboard                          │
+│  🦀 pacific-octopus [running]    + Session    Delete           │
+│  🦀 coral-lobster   [running]    + Session    Delete           │
+│  🦀 reef-kraken     [stopped]    Start        Delete           │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+           ┌──────────────────┼──────────────────┐
+           ▼                  ▼                  ▼
+    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+    │   Runner    │    │   Runner    │    │   Runner    │
+    │  (Hetzner)  │    │   (DO)      │    │  (Local)    │
+    └─────────────┘    └─────────────┘    └─────────────┘
 ```
+
+## Ocean-Themed Names 🦀
+
+Every CloudClaw instance gets a unique ocean-themed name combining an adjective with a sea creature:
+
+**Adjectives:** salty, coral, reef, tidal, deep, pacific, stormy, misty, azure, pearl, sandy, tropical, arctic, atlantic, calm, foamy, briny, coastal, abyssal, pelagic
+
+**Creatures:** hermit, lobster, kraken, shrimp, crayfish, nautilus, urchin, barnacle, crab, prawn, krill, squid, octopus, starfish, clam, mussel, oyster, scallop, conch, mantis
+
+**Examples:** `salty-hermit`, `coral-lobster`, `reef-kraken`, `pacific-octopus`, `deep-nautilus`
 
 ## Quick Start
 
@@ -104,18 +126,39 @@ On each VPS, CloudClaw installs:
 
 ## Architecture
 
+### Dashboard (Fleet Manager)
+Central control panel for all your OpenClaw instances:
+- **Instance Management**: Create, monitor, and delete instances
+- **Session Control**: Create browser sessions on any instance
+- **WebSocket Proxy**: Secure VNC connections through the dashboard
+- **Tunnel Management**: Create and manage Cloudflare tunnels
+
 ### Runner Agent
 Runs on each VPS. Manages interactive browser sessions:
 - Creates on-demand display sessions (Xvfb + Chrome + x11vnc)
+- Launches Chrome with Playwright
 - Exposes private HTTP API for session management
+- Creates cloudflared tunnels for port sharing
 - Auto-cleanup on TTL expiry
 
-### Middle Server (Dashboard)
-Public-facing gateway:
-- Authenticates users
-- Manages session registry
-- Proxies WebSocket connections to runners
-- Serves noVNC viewer
+### API Endpoints
+
+**Instances:**
+- `GET /api/instances` - List all instances
+- `POST /api/instances` - Create new instance
+- `GET /api/instances/:id` - Get instance details
+- `DELETE /api/instances/:id` - Delete instance
+
+**Sessions (per instance):**
+- `POST /api/instances/:id/sessions` - Create session on instance
+- `GET /api/instances/:id/sessions` - List sessions for instance
+- `POST /api/sessions/:id/chrome` - Launch Chrome in session
+- `POST /api/sessions/:id/stop` - Stop session
+
+**Tunnels:**
+- `POST /api/sessions/:id/tunnels` - Create tunnel (expose port)
+- `GET /api/sessions/:id/tunnels` - List tunnels
+- `DELETE /api/sessions/:id/tunnels/:port` - Stop tunnel
 
 ## Sharing (Tunnels)
 
@@ -140,23 +183,42 @@ Tunnels are automatically cleaned up when the session ends.
 
 ## Development
 
+### Docker (Recommended)
+
+The easiest way to run CloudClaw locally:
+
 ```bash
 # Clone repo
 git clone https://github.com/buddybot89/cloudclaw
 cd cloudclaw
 
+# Start with Docker Compose
+docker-compose up -d
+
+# Dashboard available at http://localhost:3000
+# Runner API at http://localhost:8090
+```
+
+### Manual Setup
+
+```bash
 # Install CLI dependencies
 cd cli && npm install
 
 # Run CLI locally
 node bin/cloudclaw.js new
 
-# Run runner agent (on Ubuntu)
+# Run runner agent (on Ubuntu with display stack)
 cd runner-agent && npm install && npm start
 
 # Run dashboard
 cd middle-server && npm install && npm start
 ```
+
+### What's in the Docker Stack
+
+- **cloudclaw-runner**: Ubuntu 24.04 + Xvfb + x11vnc + websockify + Playwright Chrome + cloudflared
+- **cloudclaw-dashboard**: Node.js dashboard with SQLite for instance/session storage
 
 ## License
 
