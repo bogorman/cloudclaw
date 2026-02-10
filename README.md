@@ -60,6 +60,77 @@ Every CloudClaw instance gets a unique ocean-themed name combining an adjective 
 
 **Examples:** `salty-hermit`, `coral-lobster`, `reef-kraken`, `pacific-octopus`, `deep-nautilus`
 
+## Quick Start
+
+### Install CLI
+
+```bash
+npm install -g cloudclaw
+```
+
+### Deploy Your First Instance
+
+```bash
+# Create a new instance (auto-generates ocean name)
+cloudclaw new
+# > Instance name: (abyssal-kraken)  ← press enter to accept
+
+# Deploy to cloud
+cloudclaw deploy
+
+# Open dashboard
+cloudclaw dashboard
+
+# View logs
+cloudclaw logs -f
+```
+
+### Multi-Instance Workflow
+
+```bash
+# List all instances
+cloudclaw list
+# 🦀 Instances
+#   🟢 salty-hermit
+#      hetzner • 5.78.123.45 • ts:100.64.1.2
+#      deployed 2h ago
+#
+#   🔵 coral-lobster
+#      digitalocean • 64.23.1.1
+#      deploying...
+
+# Commands work without name (interactive picker)
+cloudclaw status    # prompts if multiple instances
+cloudclaw ssh       # prompts if multiple instances
+cloudclaw logs      # prompts if multiple instances
+
+# Or use partial name matching
+cloudclaw ssh hermit        # matches "salty-hermit"
+cloudclaw status coral      # matches "coral-lobster"
+cloudclaw logs kraken       # matches "abyssal-kraken"
+
+# Full name also works
+cloudclaw destroy salty-hermit
+```
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `cloudclaw new` | Create a new instance (auto-generates ocean name) |
+| `cloudclaw deploy [name]` | Deploy instance to VPS |
+| `cloudclaw status [name]` | Show instance status |
+| `cloudclaw list` | List all instances |
+| `cloudclaw ssh [name]` | SSH into an instance |
+| `cloudclaw logs [name]` | View OpenClaw logs |
+| `cloudclaw dashboard [name]` | Open the OpenClaw dashboard |
+| `cloudclaw destroy [name]` | Destroy an instance |
+
+**Note:** When `[name]` is omitted:
+- If only one instance exists, it's auto-selected
+- If multiple exist, an interactive picker appears
+- Partial names work: `hermit` matches `salty-hermit`
+
 ## Remote Machines 🖥️
 
 CloudClaw can manage OpenClaw instances on remote servers via SSH:
@@ -79,49 +150,6 @@ CloudClaw can manage OpenClaw instances on remote servers via SSH:
 - SSH access (key or password)
 - Ports 8080 and 7900-7920 available
 
-## Quick Start
-
-### Install CLI
-
-```bash
-npm install -g cloudclaw
-```
-
-### Deploy
-
-```bash
-# Create a new deployment
-cloudclaw new
-
-# Deploy to cloud
-cloudclaw deploy my-agent
-
-# Open dashboard
-cloudclaw dashboard my-agent
-
-# SSH into server
-cloudclaw ssh my-agent
-
-# View logs
-cloudclaw logs my-agent -f
-
-# Destroy deployment
-cloudclaw destroy my-agent
-```
-
-## CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `cloudclaw new` | Create a new deployment configuration |
-| `cloudclaw deploy <name>` | Deploy OpenClaw to a VPS |
-| `cloudclaw status <name>` | Show deployment status |
-| `cloudclaw list` | List all deployments |
-| `cloudclaw ssh <name>` | SSH into a deployment |
-| `cloudclaw logs <name>` | View OpenClaw logs |
-| `cloudclaw dashboard <name>` | Open the OpenClaw dashboard |
-| `cloudclaw destroy <name>` | Destroy a deployment |
-
 ## What Gets Installed
 
 On each VPS, CloudClaw installs:
@@ -130,6 +158,7 @@ On each VPS, CloudClaw installs:
 - Google Chrome
 - OpenClaw
 - Display stack: Xvfb, x11vnc, websockify, noVNC
+- Cloudflared (for sharing tunnels)
 - Tailscale (optional, for secure remote access)
 - systemd service for OpenClaw
 
