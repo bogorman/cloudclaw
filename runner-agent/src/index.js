@@ -96,6 +96,21 @@ app.post('/v1/sessions/:id/stop', async (req, res) => {
   }
 });
 
+// Launch Chrome in session
+app.post('/v1/sessions/:id/chrome', async (req, res) => {
+  try {
+    const { url = 'https://google.com' } = req.body;
+    const result = await sessionManager.launchChrome(req.params.id, url);
+    res.json(result);
+  } catch (err) {
+    if (err.message === 'Session not found') {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    console.error('Failed to launch Chrome:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Cleanup orphans on startup
 sessionManager.cleanupOrphans();
 

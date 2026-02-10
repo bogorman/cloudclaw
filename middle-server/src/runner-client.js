@@ -61,4 +61,8 @@ export class RunnerClient {
   async stopSession(sessionId) {
     return this.request('POST', `/v1/sessions/${sessionId}/stop`);
   }
+
+  async launchChrome(sessionId, url) {
+    return this.request('POST', `/v1/sessions/${sessionId}/chrome`, { url });
+  }
 }

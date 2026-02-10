@@ -165,6 +165,45 @@ export class SessionManager {
     return this.sessions.get(sessionId);
   }
 
+  async launchChrome(sessionId, url = 'https://google.com') {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    if (session.status !== 'running') {
+      throw new Error(`Session is not running (status: ${session.status})`);
+    }
+
+    // Find Playwright Chrome
+    const chromePath = `${process.env.HOME}/.cache/ms-playwright/chromium-1208/chrome-linux/chrome`;
+    
+    console.log(`[${sessionId}] Launching Chrome with URL: ${url}`);
+    
+    const chrome = spawn(chromePath, [
+      '--no-sandbox',
+      '--disable-gpu',
+      '--disable-dev-shm-usage',
+      '--start-maximized',
+      url
+    ], {
+      env: { ...process.env, DISPLAY: `:${session.displayNum}` },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true
+    });
+
+    // Don't track Chrome PID - let it run independently
+    chrome.unref();
+    
+    this.logProcess(chrome, 'chrome', sessionId);
+
+    return { 
+      status: 'launched', 
+      url,
+      pid: chrome.pid 
+    };
+  }
+
   listSessions() {
     return Array.from(this.sessions.values()).map(s => ({
       session_id: s.sessionId,

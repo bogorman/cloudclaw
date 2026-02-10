@@ -135,6 +135,27 @@ app.post('/api/sessions/:id/stop', async (req, res) => {
   }
 });
 
+// Launch Chrome in session
+app.post('/api/sessions/:id/chrome', async (req, res) => {
+  const session = sessionStore.get(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  if (session.userId !== req.session.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  try {
+    const { url = 'https://google.com' } = req.body;
+    const result = await runnerClient.launchChrome(req.params.id, url);
+    res.json(result);
+  } catch (err) {
+    console.error('Failed to launch Chrome:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Viewer page
 app.get('/sessions/:id/view', (req, res) => {
   const session = sessionStore.get(req.params.id);

@@ -144,6 +144,7 @@
               <div class="session-expires">Expires: ${new Date(s.expiresAt).toLocaleTimeString()}</div>
             </div>
             <div class="session-actions">
+              <button onclick="launchChrome('${s.sessionId}')">🌐 Launch Chrome</button>
               <button onclick="openViewer('${s.sessionId}')">Open Viewer</button>
               <button class="danger" onclick="stopSession('${s.sessionId}')">Stop</button>
             </div>
@@ -187,6 +188,29 @@
 
     function openViewer(sessionId) {
       window.open(`/sessions/${sessionId}/view`, '_blank');
+    }
+
+    async function launchChrome(sessionId) {
+      const url = prompt('Enter URL to open:', 'https://google.com');
+      if (!url) return;
+
+      try {
+        const res = await fetch(`/api/sessions/${sessionId}/chrome`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          // Also open the viewer
+          window.open(`/sessions/${sessionId}/view`, '_blank');
+        } else {
+          alert('Failed to launch Chrome: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
     }
 
     async function stopSession(sessionId) {
