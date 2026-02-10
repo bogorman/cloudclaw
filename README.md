@@ -17,7 +17,8 @@ Control Chrome remotely through the browser:
 ## Features
 
 - **🦀 Fleet Management**: Deploy and manage multiple OpenClaw instances with ocean-themed names
-- **🖥️ Browser Sessions**: Create isolated Chrome sessions with VNC access per instance
+- **🖥️ Multi-Machine**: Register remote servers via SSH and deploy instances across machines
+- **🌐 Browser Sessions**: Create isolated Chrome sessions with VNC access per instance
 - **🔗 Instant Sharing**: Share any local port via Cloudflare Quick Tunnels (no account needed)
 - **👁️ Live Viewer**: Control the browser in real-time via noVNC
 - **⏱️ Auto-Cleanup**: Sessions and tunnels auto-expire after TTL
@@ -58,6 +59,25 @@ Every CloudClaw instance gets a unique ocean-themed name combining an adjective 
 **Creatures:** hermit, lobster, kraken, shrimp, crayfish, nautilus, urchin, barnacle, crab, prawn, krill, squid, octopus, starfish, clam, mussel, oyster, scallop, conch, mantis
 
 **Examples:** `salty-hermit`, `coral-lobster`, `reef-kraken`, `pacific-octopus`, `deep-nautilus`
+
+## Remote Machines 🖥️
+
+CloudClaw can manage OpenClaw instances on remote servers via SSH:
+
+1. Click **"+ Add Remote Machine"** in the dashboard
+2. Enter the server details:
+   - Name (e.g., `my-hetzner-box`)
+   - Host (IP or hostname)
+   - SSH port (default: 22)
+   - Username (default: root)
+   - SSH private key or password
+3. Test the connection
+4. Select the machine when deploying new instances
+
+**Requirements for remote machines:**
+- Docker installed
+- SSH access (key or password)
+- Ports 8080 and 7900-7920 available
 
 ## Quick Start
 
@@ -142,6 +162,15 @@ Runs on each VPS. Manages interactive browser sessions:
 - Auto-cleanup on TTL expiry
 
 ### API Endpoints
+
+**Machines:**
+- `GET /api/machines` - List all machines
+- `POST /api/machines` - Add remote machine (with SSH credentials)
+- `GET /api/machines/:id` - Get machine details
+- `POST /api/machines/:id/test` - Test SSH connection
+- `GET /api/machines/:id/runner-status` - Check if runner is running
+- `POST /api/machines/:id/start-runner` - Start runner via SSH
+- `DELETE /api/machines/:id` - Remove machine
 
 **Instances:**
 - `GET /api/instances` - List all instances
