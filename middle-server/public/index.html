@@ -76,6 +76,37 @@
     .options-row { display: flex; gap: 1rem; flex-wrap: wrap; }
     #health-status { margin-left: 1rem; }
     .empty { color: #8b949e; font-style: italic; }
+    .session-tunnels { margin-top: 0.5rem; }
+    .tunnel-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+      font-size: 0.875rem;
+    }
+    .tunnel-port {
+      background: #238636;
+      color: white;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    .tunnel-url {
+      color: #58a6ff;
+      text-decoration: none;
+      font-family: monospace;
+      font-size: 0.75rem;
+    }
+    .tunnel-url:hover { text-decoration: underline; }
+    .tunnel-close {
+      background: transparent;
+      border: none;
+      color: #8b949e;
+      cursor: pointer;
+      padding: 0.1rem 0.3rem;
+      font-size: 0.75rem;
+    }
+    .tunnel-close:hover { color: #da3633; }
   </style>
 </head>
 <body>
@@ -142,14 +173,19 @@
             <div class="session-info">
               <div class="session-id">${s.sessionId}</div>
               <div class="session-expires">Expires: ${new Date(s.expiresAt).toLocaleTimeString()}</div>
+              <div class="session-tunnels" id="tunnels-${s.sessionId}"></div>
             </div>
             <div class="session-actions">
-              <button onclick="launchChrome('${s.sessionId}')">🌐 Launch Chrome</button>
-              <button onclick="openViewer('${s.sessionId}')">Open Viewer</button>
+              <button onclick="launchChrome('${s.sessionId}')">🌐 Chrome</button>
+              <button onclick="createTunnel('${s.sessionId}')">🔗 Share</button>
+              <button onclick="openViewer('${s.sessionId}')">👁 View</button>
               <button class="danger" onclick="stopSession('${s.sessionId}')">Stop</button>
             </div>
           </div>
         `).join('');
+        
+        // Load tunnels for each session
+        data.sessions.forEach(s => loadTunnels(s.sessionId));
       } catch (err) {
         console.error('Failed to load sessions:', err);
       }
@@ -208,6 +244,76 @@
         } else {
           alert('Failed to launch Chrome: ' + data.error);
         }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function createTunnel(sessionId) {
+      const port = prompt('Enter local port to share (e.g., 3000, 8080):', '3000');
+      if (!port) return;
+
+      const portNum = parseInt(port);
+      if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+        alert('Invalid port number');
+        return;
+      }
+
+      try {
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = '⏳ Creating...';
+
+        const res = await fetch(`/api/sessions/${sessionId}/tunnels`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ port: portNum })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          loadTunnels(sessionId);
+          // Copy URL to clipboard
+          navigator.clipboard.writeText(data.url);
+          alert(`Tunnel created!\\n\\nURL: ${data.url}\\n\\n(Copied to clipboard)`);
+        } else {
+          alert('Failed to create tunnel: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        loadSessions();
+      }
+    }
+
+    async function loadTunnels(sessionId) {
+      try {
+        const res = await fetch(`/api/sessions/${sessionId}/tunnels`);
+        const data = await res.json();
+        
+        const container = document.getElementById(`tunnels-${sessionId}`);
+        if (!container) return;
+
+        if (data.tunnels && data.tunnels.length > 0) {
+          container.innerHTML = data.tunnels.map(t => `
+            <div class="tunnel-item">
+              <span class="tunnel-port">:${t.port}</span>
+              <a href="${t.url}" target="_blank" class="tunnel-url">${t.url}</a>
+              <button class="tunnel-close" onclick="stopTunnel('${sessionId}', ${t.port})">✕</button>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = '';
+        }
+      } catch (err) {
+        console.error('Failed to load tunnels:', err);
+      }
+    }
+
+    async function stopTunnel(sessionId, port) {
+      try {
+        await fetch(`/api/sessions/${sessionId}/tunnels/${port}`, { method: 'DELETE' });
+        loadTunnels(sessionId);
       } catch (err) {
         alert('Error: ' + err.message);
       }

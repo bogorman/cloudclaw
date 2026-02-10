@@ -14,6 +14,13 @@ Control Chrome remotely through the browser:
 
 ![CloudClaw Viewer with Chrome](docs/images/viewer-chrome.png)
 
+## Features
+
+- **🖥️ Browser Sessions**: Create isolated Chrome sessions with VNC access
+- **🔗 Instant Sharing**: Share any local port via Cloudflare Quick Tunnels (no account needed)
+- **👁️ Live Viewer**: Control the browser in real-time via noVNC
+- **⏱️ Auto-Cleanup**: Sessions and tunnels auto-expire after TTL
+
 ## What is CloudClaw?
 
 CloudClaw combines:
@@ -108,6 +115,18 @@ Public-facing gateway:
 - Manages session registry
 - Proxies WebSocket connections to runners
 - Serves noVNC viewer
+
+## Sharing (Tunnels)
+
+CloudClaw includes built-in support for sharing local ports via Cloudflare Quick Tunnels:
+
+1. Click **🔗 Share** on any session
+2. Enter the local port to expose (e.g., 3000 for a dev server)
+3. Get an instant public URL like `https://random-name.trycloudflare.com`
+
+**No Cloudflare account required** — uses Cloudflare's free Quick Tunnels feature.
+
+Tunnels are automatically cleaned up when the session ends.
 
 ## Security
 

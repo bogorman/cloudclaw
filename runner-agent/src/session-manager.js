@@ -204,6 +204,141 @@ export class SessionManager {
     };
   }
 
+  async createTunnel(sessionId, port) {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    if (session.status !== 'running') {
+      throw new Error(`Session is not running (status: ${session.status})`);
+    }
+
+    // Check if tunnel already exists for this port
+    const tunnelKey = `${sessionId}:${port}`;
+    if (session.tunnels && session.tunnels[port]) {
+      return { 
+        status: 'existing',
+        url: session.tunnels[port].url,
+        port 
+      };
+    }
+
+    console.log(`[${sessionId}] Creating tunnel for port ${port}`);
+
+    return new Promise((resolve, reject) => {
+      const cloudflared = spawn('cloudflared', [
+        'tunnel',
+        '--url', `http://localhost:${port}`,
+        '--no-autoupdate'
+      ], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false
+      });
+
+      if (!session.tunnels) {
+        session.tunnels = {};
+      }
+
+      let url = null;
+      let resolved = false;
+
+      const handleOutput = (data) => {
+        const output = data.toString();
+        console.log(`[${sessionId}] cloudflared: ${output.trim()}`);
+        
+        // Look for the tunnel URL in output
+        const urlMatch = output.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+        if (urlMatch && !resolved) {
+          url = urlMatch[0];
+          resolved = true;
+          
+          session.tunnels[port] = {
+            url,
+            pid: cloudflared.pid,
+            process: cloudflared
+          };
+
+          resolve({
+            status: 'created',
+            url,
+            port,
+            pid: cloudflared.pid
+          });
+        }
+      };
+
+      cloudflared.stdout.on('data', handleOutput);
+      cloudflared.stderr.on('data', handleOutput);
+
+      cloudflared.on('error', (err) => {
+        console.error(`[${sessionId}] cloudflared error:`, err);
+        if (!resolved) {
+          resolved = true;
+          reject(err);
+        }
+      });
+
+      cloudflared.on('exit', (code) => {
+        console.log(`[${sessionId}] cloudflared exited with code ${code}`);
+        if (session.tunnels && session.tunnels[port]) {
+          delete session.tunnels[port];
+        }
+      });
+
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cloudflared.kill();
+          reject(new Error('Tunnel creation timed out'));
+        }
+      }, 30000);
+    });
+  }
+
+  async stopTunnel(sessionId, port) {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    if (!session.tunnels || !session.tunnels[port]) {
+      throw new Error(`No tunnel found for port ${port}`);
+    }
+
+    const tunnel = session.tunnels[port];
+    console.log(`[${sessionId}] Stopping tunnel for port ${port}`);
+
+    try {
+      process.kill(tunnel.pid, 'SIGTERM');
+    } catch (err) {
+      if (err.code !== 'ESRCH') {
+        console.error(`Failed to kill tunnel:`, err.message);
+      }
+    }
+
+    delete session.tunnels[port];
+    return { status: 'stopped', port };
+  }
+
+  listTunnels(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    if (!session.tunnels) {
+      return [];
+    }
+
+    return Object.entries(session.tunnels).map(([port, tunnel]) => ({
+      port: parseInt(port),
+      url: tunnel.url,
+      pid: tunnel.pid
+    }));
+  }
+
   listSessions() {
     return Array.from(this.sessions.values()).map(s => ({
       session_id: s.sessionId,

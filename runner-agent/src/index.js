@@ -111,6 +111,51 @@ app.post('/v1/sessions/:id/chrome', async (req, res) => {
   }
 });
 
+// Create tunnel for a port
+app.post('/v1/sessions/:id/tunnels', async (req, res) => {
+  try {
+    const { port } = req.body;
+    if (!port || isNaN(port)) {
+      return res.status(400).json({ error: 'port is required and must be a number' });
+    }
+    const result = await sessionManager.createTunnel(req.params.id, parseInt(port));
+    res.json(result);
+  } catch (err) {
+    if (err.message === 'Session not found') {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    console.error('Failed to create tunnel:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List tunnels for a session
+app.get('/v1/sessions/:id/tunnels', (req, res) => {
+  try {
+    const tunnels = sessionManager.listTunnels(req.params.id);
+    res.json({ tunnels });
+  } catch (err) {
+    if (err.message === 'Session not found') {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Stop a tunnel
+app.delete('/v1/sessions/:id/tunnels/:port', async (req, res) => {
+  try {
+    const result = await sessionManager.stopTunnel(req.params.id, parseInt(req.params.port));
+    res.json(result);
+  } catch (err) {
+    if (err.message === 'Session not found') {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    console.error('Failed to stop tunnel:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Cleanup orphans on startup
 sessionManager.cleanupOrphans();
 

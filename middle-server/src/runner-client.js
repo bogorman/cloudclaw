@@ -65,4 +65,16 @@ export class RunnerClient {
   async launchChrome(sessionId, url) {
     return this.request('POST', `/v1/sessions/${sessionId}/chrome`, { url });
   }
+
+  async createTunnel(sessionId, port) {
+    return this.request('POST', `/v1/sessions/${sessionId}/tunnels`, { port });
+  }
+
+  async listTunnels(sessionId) {
+    return this.request('GET', `/v1/sessions/${sessionId}/tunnels`);
+  }
+
+  async stopTunnel(sessionId, port) {
+    return this.request('DELETE', `/v1/sessions/${sessionId}/tunnels/${port}`);
+  }
 }

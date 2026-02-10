@@ -156,6 +156,67 @@ app.post('/api/sessions/:id/chrome', async (req, res) => {
   }
 });
 
+// Create tunnel for a port
+app.post('/api/sessions/:id/tunnels', async (req, res) => {
+  const session = sessionStore.get(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  if (session.userId !== req.session.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  try {
+    const { port } = req.body;
+    const result = await runnerClient.createTunnel(req.params.id, port);
+    res.json(result);
+  } catch (err) {
+    console.error('Failed to create tunnel:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List tunnels for a session
+app.get('/api/sessions/:id/tunnels', async (req, res) => {
+  const session = sessionStore.get(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  if (session.userId !== req.session.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  try {
+    const result = await runnerClient.listTunnels(req.params.id);
+    res.json(result);
+  } catch (err) {
+    console.error('Failed to list tunnels:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Stop a tunnel
+app.delete('/api/sessions/:id/tunnels/:port', async (req, res) => {
+  const session = sessionStore.get(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  if (session.userId !== req.session.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  try {
+    const result = await runnerClient.stopTunnel(req.params.id, parseInt(req.params.port));
+    res.json(result);
+  } catch (err) {
+    console.error('Failed to stop tunnel:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Viewer page
 app.get('/sessions/:id/view', (req, res) => {
   const session = sessionStore.get(req.params.id);

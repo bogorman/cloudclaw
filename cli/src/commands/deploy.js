@@ -14,6 +14,7 @@ const CHECKPOINTS = [
   'swap_configured',
   'system_updated',
   'display_stack_installed',
+  'cloudflared_installed',
   'nvm_installed',
   'node_installed',
   'chrome_installed',
@@ -104,6 +105,14 @@ export async function deploy(name) {
       await setup.installDisplayStack(ssh, (msg) => { spinner.text = msg; });
       markCheckpoint(deployment, 'display_stack_installed');
       spinner.succeed('Display stack installed (Xvfb, x11vnc, websockify)');
+    }
+
+    // === CLOUDFLARED ===
+    if (startIndex <= CHECKPOINTS.indexOf('cloudflared_installed')) {
+      spinner.start('Installing cloudflared...');
+      await setup.installCloudflared(ssh, (msg) => { spinner.text = msg; });
+      markCheckpoint(deployment, 'cloudflared_installed');
+      spinner.succeed('Cloudflared installed (for sharing tunnels)');
     }
 
     // === NVM ===

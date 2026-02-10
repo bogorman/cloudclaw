@@ -70,6 +70,37 @@ export async function installDisplayStack(ssh, onStatus) {
 }
 
 /**
+ * Install cloudflared for tunnels
+ */
+export async function installCloudflared(ssh, onStatus) {
+  onStatus?.('Checking cloudflared...');
+  
+  const check = await ssh.exec('which cloudflared');
+  if (check.code === 0) {
+    onStatus?.('cloudflared already installed');
+    return;
+  }
+
+  onStatus?.('Installing cloudflared...');
+  
+  // Detect architecture
+  const arch = await ssh.exec('dpkg --print-architecture');
+  const archStr = arch.stdout.trim(); // amd64 or arm64
+  
+  await execOrFail(ssh,
+    `wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${archStr}.deb -O /tmp/cloudflared.deb`,
+    'Failed to download cloudflared'
+  );
+
+  await execOrFail(ssh,
+    'dpkg -i /tmp/cloudflared.deb',
+    'Failed to install cloudflared'
+  );
+  
+  await ssh.exec('rm -f /tmp/cloudflared.deb');
+}
+
+/**
  * Install NVM
  */
 export async function installNVM(ssh, onStatus) {
