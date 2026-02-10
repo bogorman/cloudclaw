@@ -1,0 +1,76 @@
+# CloudClaw Runner - Ubuntu 24.04 with OpenClaw + VNC stack
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    # Display stack
+    xvfb \
+    x11vnc \
+    openbox \
+    xauth \
+    websockify \
+    novnc \
+    # Browser dependencies
+    wget \
+    gnupg \
+    ca-certificates \
+    fonts-liberation \
+    libasound2t64 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    xdg-utils \
+    # Node.js
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install OpenClaw
+RUN npm install -g openclaw
+
+# Install Playwright and browsers
+RUN npx playwright install chromium \
+    && npx playwright install-deps chromium
+
+# Create app directory
+WORKDIR /app
+
+# Copy runner agent
+COPY runner-agent/package*.json ./
+RUN npm install --production
+
+COPY runner-agent/src ./src
+
+# Create non-root user
+RUN useradd -m -s /bin/bash cloudclaw
+RUN chown -R cloudclaw:cloudclaw /app
+
+# Environment
+ENV BIND_IP=0.0.0.0
+ENV AGENT_PORT=8080
+ENV DISPLAY=:20
+
+USER cloudclaw
+
+EXPOSE 8080
+EXPOSE 7900-7979
+
+CMD ["node", "src/index.js"]

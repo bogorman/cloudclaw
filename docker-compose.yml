@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  runner:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.runner
+    environment:
+      - BIND_IP=0.0.0.0
+      - AGENT_PORT=8080
+      - API_TOKEN=${API_TOKEN:-dev-token}
+    # In production, only expose to dashboard network
+    # For development, expose to host
+    ports:
+      - "8080:8080"
+      - "7900-7920:7900-7920"
+    # Required for Xvfb
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    environment:
+      - PORT=3000
+      - RUNNER_URL=http://runner:8080
+      - RUNNER_TOKEN=${API_TOKEN:-dev-token}
+      - SESSION_SECRET=${SESSION_SECRET:-cloudclaw-dev-secret}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - runner
+    volumes:
+      - dashboard-data:/app/data
+
+volumes:
+  dashboard-data:

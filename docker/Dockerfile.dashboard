@@ -1,0 +1,24 @@
+# CloudClaw Dashboard - Middle Server
+FROM node:20-slim
+
+WORKDIR /app
+
+# Copy package files
+COPY middle-server/package*.json ./
+RUN npm install --production
+
+# Copy source
+COPY middle-server/src ./src
+COPY middle-server/public ./public
+
+# Create data directory for SQLite
+RUN mkdir -p data && chown -R node:node /app
+
+USER node
+
+ENV PORT=3000
+ENV NODE_ENV=production
+
+EXPOSE 3000
+
+CMD ["node", "src/index.js"]

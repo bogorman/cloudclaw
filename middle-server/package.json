@@ -1,0 +1,22 @@
+{
+  "name": "cloudclaw-dashboard",
+  "version": "0.1.0",
+  "description": "CloudClaw dashboard - gateway and viewer for browser sessions",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.2.2",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "http-proxy": "^1.18.1",
+    "uuid": "^9.0.0",
+    "ws": "^8.14.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

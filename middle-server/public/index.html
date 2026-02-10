@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudClaw Dashboard</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #0d1117;
+      color: #e6edf3;
+    }
+    h1 { margin-bottom: 0.5rem; }
+    .subtitle { color: #8b949e; margin-bottom: 2rem; }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 { margin-top: 0; }
+    button {
+      background: #238636;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 500;
+    }
+    button:hover { background: #2ea043; }
+    button:disabled { background: #30363d; cursor: not-allowed; }
+    button.danger { background: #da3633; }
+    button.danger:hover { background: #f85149; }
+    .sessions-list { margin-top: 1rem; }
+    .session-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+    }
+    .session-info { flex: 1; }
+    .session-id { font-family: monospace; color: #58a6ff; }
+    .session-expires { color: #8b949e; font-size: 0.875rem; }
+    .session-actions { display: flex; gap: 0.5rem; }
+    .session-actions button { padding: 0.5rem 1rem; font-size: 0.875rem; }
+    .status {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .status.ok { background: #238636; }
+    .status.error { background: #da3633; }
+    .options { margin: 1rem 0; }
+    .options label { display: block; margin-bottom: 0.5rem; color: #8b949e; }
+    .options input, .options select {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      padding: 0.5rem;
+      border-radius: 4px;
+      width: 150px;
+    }
+    .options-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    #health-status { margin-left: 1rem; }
+    .empty { color: #8b949e; font-style: italic; }
+  </style>
+</head>
+<body>
+  <h1>☁️ CloudClaw Dashboard</h1>
+  <p class="subtitle">Human-in-the-loop browser sessions via noVNC</p>
+
+  <div class="card">
+    <h2>Create Session <span id="health-status"></span></h2>
+    <div class="options">
+      <div class="options-row">
+        <div>
+          <label>Resolution</label>
+          <select id="resolution">
+            <option value="1920x1080">1920×1080</option>
+            <option value="1280x720">1280×720</option>
+            <option value="1024x768">1024×768</option>
+          </select>
+        </div>
+        <div>
+          <label>TTL (minutes)</label>
+          <input type="number" id="ttl" value="15" min="1" max="60">
+        </div>
+      </div>
+    </div>
+    <button id="create-btn" onclick="createSession()">Create Interactive Session</button>
+  </div>
+
+  <div class="card">
+    <h2>Active Sessions</h2>
+    <div id="sessions-list" class="sessions-list">
+      <p class="empty">No active sessions</p>
+    </div>
+  </div>
+
+  <script>
+    async function checkHealth() {
+      const el = document.getElementById('health-status');
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        if (data.runner?.status === 'ok') {
+          el.innerHTML = '<span class="status ok">Runner: Connected</span>';
+        } else {
+          el.innerHTML = '<span class="status error">Runner: ' + (data.runner?.error || 'Disconnected') + '</span>';
+        }
+      } catch (err) {
+        el.innerHTML = '<span class="status error">Health check failed</span>';
+      }
+    }
+
+    async function loadSessions() {
+      try {
+        const res = await fetch('/api/sessions');
+        const data = await res.json();
+        const list = document.getElementById('sessions-list');
+        
+        if (data.sessions.length === 0) {
+          list.innerHTML = '<p class="empty">No active sessions</p>';
+          return;
+        }
+
+        list.innerHTML = data.sessions.map(s => `
+          <div class="session-item">
+            <div class="session-info">
+              <div class="session-id">${s.sessionId}</div>
+              <div class="session-expires">Expires: ${new Date(s.expiresAt).toLocaleTimeString()}</div>
+            </div>
+            <div class="session-actions">
+              <button onclick="openViewer('${s.sessionId}')">Open Viewer</button>
+              <button class="danger" onclick="stopSession('${s.sessionId}')">Stop</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load sessions:', err);
+      }
+    }
+
+    async function createSession() {
+      const btn = document.getElementById('create-btn');
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+
+      try {
+        const [width, height] = document.getElementById('resolution').value.split('x').map(Number);
+        const ttl = parseInt(document.getElementById('ttl').value) * 60;
+
+        const res = await fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ width, height, ttl_seconds: ttl })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          loadSessions();
+          // Auto-open viewer
+          window.open(data.view_url, '_blank');
+        } else {
+          alert('Failed to create session: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Interactive Session';
+      }
+    }
+
+    function openViewer(sessionId) {
+      window.open(`/sessions/${sessionId}/view`, '_blank');
+    }
+
+    async function stopSession(sessionId) {
+      if (!confirm('Stop this session?')) return;
+      
+      try {
+        await fetch(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
+        loadSessions();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // Initial load
+    checkHealth();
+    loadSessions();
+
+    // Poll for updates
+    setInterval(checkHealth, 10000);
+    setInterval(loadSessions, 5000);
+  </script>
+</body>
+</html>
