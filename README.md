@@ -1,10 +1,14 @@
 # CloudClaw
 
-Open source gateway to run OpenClaw in the cloud with human-in-the-loop browser sessions.
+Open source gateway to deploy and manage OpenClaw in the cloud with human-in-the-loop browser sessions via noVNC.
 
-## Overview
+## What is CloudClaw?
 
-CloudClaw enables visual browser automation via OpenClaw. When interactive login is required, users can view and control Chrome directly from the dashboard via noVNC.
+CloudClaw combines:
+- **VPS Provisioning**: Deploy to Hetzner or DigitalOcean with one command
+- **Full Stack Setup**: Node.js, Chrome, OpenClaw, Tailscale — all automated
+- **Visual Browser Sessions**: View and control Chrome via noVNC when needed
+- **Human-in-the-Loop**: When Playwright hits a login page, users can manually authenticate
 
 ```
 ┌─────────────────┐     HTTPS      ┌─────────────────┐    Private    ┌─────────────────┐
@@ -13,63 +17,119 @@ CloudClaw enables visual browser automation via OpenClaw. When interactive login
 └─────────────────┘                └─────────────────┘               └─────────────────┘
 ```
 
-## Features
+## Quick Start
 
-- **Visual Browser Sessions**: View and control Chrome via noVNC in your browser
-- **Human-in-the-Loop**: When Playwright hits a login page, users can manually authenticate
-- **Secure by Design**: Runner never exposed to internet; all traffic tunneled through authenticated WebSocket proxy
-- **Session Management**: TTL-based sessions with auto-cleanup
-- **Docker Ready**: Full Docker image with OpenClaw + all dependencies
+### Install CLI
 
-## Components
+```bash
+npm install -g cloudclaw
+```
+
+### Deploy
+
+```bash
+# Create a new deployment
+cloudclaw new
+
+# Deploy to cloud
+cloudclaw deploy my-agent
+
+# Open dashboard
+cloudclaw dashboard my-agent
+
+# SSH into server
+cloudclaw ssh my-agent
+
+# View logs
+cloudclaw logs my-agent -f
+
+# Destroy deployment
+cloudclaw destroy my-agent
+```
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `cloudclaw new` | Create a new deployment configuration |
+| `cloudclaw deploy <name>` | Deploy OpenClaw to a VPS |
+| `cloudclaw status <name>` | Show deployment status |
+| `cloudclaw list` | List all deployments |
+| `cloudclaw ssh <name>` | SSH into a deployment |
+| `cloudclaw logs <name>` | View OpenClaw logs |
+| `cloudclaw dashboard <name>` | Open the OpenClaw dashboard |
+| `cloudclaw destroy <name>` | Destroy a deployment |
+
+## What Gets Installed
+
+On each VPS, CloudClaw installs:
+- 4GB swap (for low-memory servers)
+- Node.js LTS (via NVM)
+- Google Chrome
+- OpenClaw
+- Display stack: Xvfb, x11vnc, websockify, noVNC
+- Tailscale (optional, for secure remote access)
+- systemd service for OpenClaw
+
+## Cloud Providers
+
+### Hetzner Cloud
+- Cheapest: CPX11 (2 vCPU, 2GB RAM) at €4.35/mo
+- US locations: Ashburn, Hillsboro
+- EU locations: Falkenstein, Nuremberg, Helsinki
+
+### DigitalOcean
+- Smallest: s-1vcpu-2gb (1 vCPU, 2GB RAM) at $12/mo
+- Regions: NYC, SFO, AMS, LON, FRA, SGP
+
+## Architecture
 
 ### Runner Agent
-Long-running service on each VM that:
-- Runs Playwright tasks headless by default
-- Creates on-demand interactive sessions (Xvfb + Chrome + x11vnc)
+Runs on each VPS. Manages interactive browser sessions:
+- Creates on-demand display sessions (Xvfb + Chrome + x11vnc)
 - Exposes private HTTP API for session management
+- Auto-cleanup on TTL expiry
 
 ### Middle Server (Dashboard)
-Public-facing gateway that:
+Public-facing gateway:
 - Authenticates users
 - Manages session registry
 - Proxies WebSocket connections to runners
 - Serves noVNC viewer
 
-## Quick Start
-
-```bash
-# Start the middle server (dashboard)
-cd middle-server
-npm install
-npm start
-
-# On each runner VM
-cd runner-agent
-npm install
-npm start
-```
-
-## Requirements
-
-### Runner
-- Ubuntu 24.04 LTS
-- xvfb, openbox, x11vnc, websockify, xauth
-- Node.js 20+
-- Playwright dependencies
-
-### Middle Server
-- Ubuntu 24.04 LTS (or any OS with Node.js)
-- Node.js 20+
-
 ## Security
 
-1. Runner VNC/WS ports bind only to private interface
-2. Firewall allows only middle server IP to connect to runner
-3. Middle server is the only public entrypoint (HTTPS)
-4. Per-session access control (owner only)
-5. Sessions auto-expire after TTL (default 15 minutes)
+- VNC/WebSocket ports bind only to private interface
+- Firewall allows only dashboard to connect to runner
+- Dashboard is the only public entrypoint (HTTPS)
+- Per-session access control (owner only)
+- Sessions auto-expire after TTL (default 15 minutes)
+- Tailscale for secure remote access (optional)
+
+## Development
+
+```bash
+# Clone repo
+git clone https://github.com/buddybot89/cloudclaw
+cd cloudclaw
+
+# Install CLI dependencies
+cd cli && npm install
+
+# Run CLI locally
+node bin/cloudclaw.js new
+
+# Run runner agent (on Ubuntu)
+cd runner-agent && npm install && npm start
+
+# Run dashboard
+cd middle-server && npm install && npm start
+```
 
 ## License
 
 MIT
+
+## Credits
+
+Inspired by [ClawControl](https://github.com/ipenywis/clawcontrol) by Islem.
