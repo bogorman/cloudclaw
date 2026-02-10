@@ -2,6 +2,18 @@
 
 Open source gateway to deploy and manage OpenClaw in the cloud with human-in-the-loop browser sessions via noVNC.
 
+## Screenshots
+
+### Dashboard
+Create and manage browser sessions from the web dashboard:
+
+![CloudClaw Dashboard](docs/images/dashboard.png)
+
+### noVNC Viewer
+Control Chrome remotely through the browser:
+
+![CloudClaw Viewer with Chrome](docs/images/viewer-chrome.png)
+
 ## What is CloudClaw?
 
 CloudClaw combines:
