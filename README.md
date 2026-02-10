@@ -16,7 +16,8 @@ Control Chrome remotely through the browser:
 
 ## Features
 
-- **🖥️ Browser Sessions**: Create isolated Chrome sessions with VNC access
+- **🦀 Fleet Management**: Deploy and manage multiple OpenClaw instances with ocean-themed names
+- **🖥️ Browser Sessions**: Create isolated Chrome sessions with VNC access per instance
 - **🔗 Instant Sharing**: Share any local port via Cloudflare Quick Tunnels (no account needed)
 - **👁️ Live Viewer**: Control the browser in real-time via noVNC
 - **⏱️ Auto-Cleanup**: Sessions and tunnels auto-expire after TTL
