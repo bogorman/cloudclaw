@@ -247,7 +247,7 @@ The easiest way to run CloudClaw locally:
 
 ```bash
 # Clone repo
-git clone https://github.com/buddybot89/cloudclaw
+git clone https://github.com/bogorman/cloudclaw
 cd cloudclaw
 
 # Start with Docker Compose
